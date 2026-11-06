@@ -44,16 +44,16 @@ _TEST_TURNSTILE_VERIFY_URL = None
 
 # ---------------------------------------------------------------------------
 # Access overlay:
-# 1) DEMO LABELING - every rendered surface carries the restricted-demo
+# 1) DATA LABELING - every rendered surface carries the public-data
 #    banner below. The probe engine is real;
 #    per-plan/per-report demo-vs-verified labeling is governed by the
 #    engine's data_origin system (Simulated-Demo vs Server-Verified), and
 #    this overlay no longer rewrites labels site-wide.
-# 2) ACCESS GATE - while in demo state the site is NOT public. When
-#    CSL_GATE_PASSWORD_SHA256 is set in the environment, requests arriving
-#    through the reverse proxy (X-Forwarded-For present) must log in first.
-#    Direct local requests from the host itself (no XFF) pass: the app port
-#    binds 127.0.0.1 and is firewalled, so that path is host-only (ops).
+# 2) ACCESS GATE - removed site-wide in v1.5.0: every route is public.
+#    The login machinery below is retained for self-hosted deployments
+#    that set CSL_GATE_PASSWORD_SHA256, but no route requires it.
+#    The probe submission endpoint keeps its Cloudflare Turnstile check
+#    (anti-abuse, not authentication).
 # ---------------------------------------------------------------------------
 GATE_USER = os.environ.get("CSL_GATE_USER", "admin")
 GATE_PASSWORD_SHA256 = os.environ.get("CSL_GATE_PASSWORD_SHA256", "").strip().lower()
@@ -62,14 +62,115 @@ SESSION_TTL_SECONDS = 12 * 3600
 _sessions = {}
 _sessions_lock = threading.Lock()
 
-DEMO_NOTICE_ZH = "本站为受限演示环境：标注 Simulated · 模拟生成 的是模拟基线数据，标注 Server-Verified 的是真实探测记录，请按标注区分"
-DEMO_NOTICE_EN = "RESTRICTED DEMO - entries labeled Simulated are simulated baselines; entries labeled Server-Verified are real probe records."
+DEMO_NOTICE_ZH = "本站数据全部公开：标注 Simulated · 模拟生成 的是模拟基线数据，标注 Server-Verified 的是真实探测记录，请按标注区分；黄金基线校准进行中"
+DEMO_NOTICE_EN = "PUBLIC DATA - entries labeled Simulated are simulated baselines; entries labeled Server-Verified are real probe records. Golden baselines are being calibrated."
 DEMO_BANNER = (
     '<div style="position:sticky;top:0;z-index:9999;background:#7C2D12;color:#FFF7ED;'
     'font:600 13px/1.5 system-ui,sans-serif;text-align:center;padding:8px 12px;'
     'border-bottom:2px solid #EA580C">'
-    "⚠ CSL-Meter 演示环境 DEMO — " + DEMO_NOTICE_ZH + " · " + DEMO_NOTICE_EN + " (konspace.cc)</div>"
+    "🌐 CSL-Meter 公开观测台 PUBLIC — " + DEMO_NOTICE_ZH + " · " + DEMO_NOTICE_EN + " (konspace.cc)</div>"
 )
+
+# ---------------------------------------------------------------------------
+# GEO kit (v1.5.0): /llms.txt + /robots.txt + /sitemap.xml, all public.
+# Content mirrors README.md / docs/methodology.md wording; no internal
+# information. The two site-verification meta values are baked into the
+# home page <head> (GOOGLE_SITE_VERIFICATION / BING_SITE_VERIFICATION).
+# ---------------------------------------------------------------------------
+GOOGLE_SITE_VERIFICATION = "1tBQmidYVGrz9zHr_PUhtJprdHrf-psjdJxIqIS2BD0"
+BING_SITE_VERIFICATION = "D296B471A77449FE422315A5CBFDF675"
+GITHUB_REPO_URL = "https://github.com/konspace-cc/csl-meter"
+
+LLMS_TXT = """# CSL-Meter
+
+> CSL-Meter is a public observatory that measures whether personal AI
+> subscription plans and pay-as-you-go API plans actually serve the model
+> they claim. It probes plans with real upstream API calls and publishes
+> a CSL index per plan, with every reading labeled by origin.
+
+## What CSL means
+
+CSL = Consistency, Substitution & Latency. For each plan CSL-Meter runs
+a fixed probe battery (real outbound API requests), extracts a numeric
+distribution fingerprint from the responses, and compares it against a
+golden baseline for the claimed model. The published CSL index combines
+identification consistency across harnesses, substitution risk (the
+fingerprint drifting towards a different model's profile) and latency.
+
+## Data labeling rules (read this before citing any number)
+
+- Simulated: simulated baseline data, seeded for display. It is NEVER
+  mixed into verified aggregates.
+- Server-Verified: produced by a real probe battery executed and stored
+  by the server against the provider's official endpoint.
+- A plan only counts as verified once it carries at least one
+  Server-Verified sample; the site-wide status turns verified-live only
+  once EVERY listed plan has one.
+- If a number has no label, it is not a measurement.
+
+## Key links
+
+- Live site: https://konspace.cc/
+- Plans API (JSON): https://konspace.cc/api/v1/plans
+- Methodology: https://github.com/konspace-cc/csl-meter/blob/main/docs/methodology.md
+- Source code (Apache-2.0): https://github.com/konspace-cc/csl-meter
+
+## Calibration
+
+The golden baselines are still being crowd-calibrated: if you hold a
+first-party API key for a baseline model, you can contribute a
+calibration capture — see CONTRIBUTING.md in the GitHub repository.
+"""
+
+ROBOTS_TXT = """# CSL-Meter (konspace.cc) - all crawlers welcome, including AI search.
+User-agent: *
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://konspace.cc/sitemap.xml
+"""
+
+
+def _sitemap_xml() -> str:
+    # Only URLs that really exist as public routes: home and /llms.txt.
+    # There is no standalone methodology page route (the methodology
+    # lives in the GitHub repo), so it is not listed here.
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        "  <url><loc>https://konspace.cc/</loc></url>\n"
+        "  <url><loc>https://konspace.cc/llms.txt</loc></url>\n"
+        "</urlset>\n"
+    )
 
 db = CSLDatabase(DB_PATH)
 
@@ -677,6 +778,16 @@ def render_home_page(query_params: dict) -> str:
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>CSL-Meter｜个人大模型套餐与按量接口 CSL 指数公共观测台 (konspace.cc)</title>
+  <meta name="description" content="CSL-Meter probes AI subscription &amp; API plans for model consistency, substitution risk and latency — measured, not claimed."/>
+  <link rel="canonical" href="https://konspace.cc/"/>
+  <meta property="og:title" content="CSL-Meter — AI plan consistency, substitution &amp; latency, measured"/>
+  <meta property="og:description" content="CSL-Meter probes AI subscription &amp; API plans for model consistency, substitution risk and latency — measured, not claimed."/>
+  <meta property="og:url" content="https://konspace.cc/"/>
+  <meta property="og:type" content="website"/>
+  <meta name="google-site-verification" content="{GOOGLE_SITE_VERIFICATION}"/>
+  <meta name="msvalidate.01" content="{BING_SITE_VERIFICATION}"/>
+  <script type="application/ld+json">{{"@context": "https://schema.org", "@type": "Organization", "name": "CSL-Meter", "url": "https://konspace.cc/", "sameAs": ["{GITHUB_REPO_URL}"]}}</script>
+  <script type="application/ld+json">{{"@context": "https://schema.org", "@type": "WebSite", "name": "CSL-Meter", "url": "https://konspace.cc/"}}</script>
   <style>{SHARED_CSS}</style>
   {turnstile_head_script}
 </head>
@@ -1384,14 +1495,14 @@ button:hover { background:#0EA5E9; }
 <body>
 <form class="card" method="post" action="/login">
 <h1>⚡ CSL-Meter</h1>
-<p class="sub">演示环境 · 访问受限，请先登录</p>
+<p class="sub">站主登录 · 自托管部署可选启用</p>
 __ERROR__
 <label for="u">用户名</label>
 <input id="u" name="username" autocomplete="username" required/>
 <label for="p">口令</label>
 <input id="p" name="password" type="password" autocomplete="current-password" required/>
 <button type="submit">登录</button>
-<p class="note">本站当前为受限演示环境：标注 Simulated · 模拟生成 的是模拟基线数据，标注 Server-Verified 的是真实探测记录，请按标注区分。</p>
+<p class="note">本站数据全部公开，此登录仅供自托管部署在启用 CSL_GATE_PASSWORD_SHA256 时使用，未配置时本站无任何登录拦截。读数标注规则：标注 Simulated · 模拟生成 的是模拟基线数据，标注 Server-Verified 的是真实探测记录，请按标注区分。</p>
 </form>
 </body>
 </html>"""
@@ -1434,12 +1545,15 @@ class CSLRequestHandler(BaseHTTPRequestHandler):
         self._send_headers(status, "application/json; charset=utf-8", cache_sec=cache_sec)
         self.wfile.write(body)
 
+    def _send_text(self, status: int, text: str, content_type: str, cache_sec: int = 3600):
+        body = text.encode("utf-8")
+        self._send_headers(status, content_type, cache_sec=cache_sec)
+        self.wfile.write(body)
+
     def _send_html(self, status: int, html_str: str, allow_iframe: bool = False):
-        # Restricted-demo banner (overlay, kept in the v1.3 merge): injected
-        # site-wide on every HTML response. The overlay's former blanket
-        # "Server-Verified" -> "Simulated" rewrite is removed: labeling is
-        # governed by data_origin, and real verified records must render as
-        # Server-Verified.
+        # Public-data banner (overlay): injected site-wide on every HTML
+        # response. Labeling is governed by data_origin, and real verified
+        # records must render as Server-Verified.
         html_str = re.sub(r"<body[^>]*>", lambda m: m.group(0) + DEMO_BANNER, html_str, count=1)
         if DEMO_BANNER not in html_str:
             html_str = DEMO_BANNER + html_str
@@ -1540,8 +1654,20 @@ class CSLRequestHandler(BaseHTTPRequestHandler):
         if path == "/logout":
             self._handle_logout()
             return
-        if not self._require_gate(path):
+
+        # GEO kit (v1.5.0): public, no login.
+        if path == "/llms.txt":
+            self._send_text(200, LLMS_TXT, "text/plain; charset=utf-8")
             return
+        if path == "/robots.txt":
+            self._send_text(200, ROBOTS_TXT, "text/plain; charset=utf-8")
+            return
+        if path == "/sitemap.xml":
+            self._send_text(200, _sitemap_xml(), "application/xml; charset=utf-8")
+            return
+
+        # v1.5.0: the site-wide login wall is gone; every route below is
+        # public. The retained login machinery gates nothing here.
 
         verified_cnt = db.count_verified_reports()
         status_meta = _global_data_status_meta()
@@ -1757,8 +1883,11 @@ class CSLRequestHandler(BaseHTTPRequestHandler):
         self._send_json(404, {"error": "NOT_FOUND", "attribution": make_attribution("/")}, cache_sec=0)
 
     def do_POST(self):
-        # Overlay order: write rate limit first, then /login, then the
-        # access gate, then routing.
+        # Overlay order: write rate limit first, then /login, then
+        # routing. Since v1.5.0 there is no access gate on POST: the
+        # only POST route is the probe submission, public and protected
+        # by the Cloudflare Turnstile check below (anti-abuse,
+        # fail-closed) instead of a login.
         ip = self._client_ip()
         if not rate_limiter.allow(ip, is_write=True):
             self._send_json(429, {"error": "WRITE_RATE_LIMITED", "attribution": make_attribution("/")}, cache_sec=0)
@@ -1769,8 +1898,6 @@ class CSLRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/login":
             self._handle_login()
-            return
-        if not self._require_gate(path):
             return
 
         if path not in ("/api/v1/probe", "/v1/probe"):

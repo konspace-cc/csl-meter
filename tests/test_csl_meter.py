@@ -7,7 +7,9 @@ Tests:
 2. Fake Canary Key rejection (no outbound success -> HTTP 502 UPSTREAM_PROBE_FAILED, 0 fake reports written)
 3. Real HTTP socket probe execution against a local OpenAI/Anthropic upstream server -> transitions plan to Server-Verified and drops DEMO suffix
 4. Cloudflare Turnstile widget rendering + siteverify backend enforcement
-5. CSL_GATE_PASSWORD_SHA256 /login gate (302 for HTML, 401 for API with X-Forwarded-For)
+5. Access behavior after v1.5.0: the site-wide /login gate is removed —
+   every surface answers anonymously; the retained login machinery
+   (kept for self-hosted deployments) still works but gates nothing
 6. Zero credential persistence & SSRF blocking
 7. Turnstile fail-closed when TURNSTILE_SECRET_KEY is not configured
 8. Strict site-wide data_status: verified-live only once EVERY plan is verified
@@ -32,6 +34,10 @@ Tests:
     with INSUFFICIENT_PROBE_CONTENT and zero reports (v1.3.5)
 15. No owner-only registry route exists in this public tree: both the
     legacy /projects path and any disguised variant answer a plain 404.
+16. GEO kit (v1.5.0): /llms.txt, /robots.txt (AI crawlers explicitly
+    allowed, Sitemap line) and /sitemap.xml served publicly with their
+    real content; home page carries the Google/Bing site-verification
+    meta tags, canonical, OG tags and JSON-LD
 """
 
 import hashlib
@@ -328,11 +334,14 @@ class TestCSLMeterV13(unittest.TestCase):
         os.environ.pop("TURNSTILE_SECRET_KEY", None)
 
     def test_04_login_gate_overlay_preservation(self):
-        """Overlay gate semantics, asserted end to end.
+        """Access behavior after v1.5.0: fully public, login vestigial.
 
-        The overlay reads its env at import
-        time (production sets it before process start), so the test drives
-        the module-level gate settings directly and restores them after.
+        The site-wide gate is removed in the public build: even with the
+        gate env switched on, anonymous proxied requests get the home
+        page, the plans API and SVG badges with 200. The login machinery
+        is retained for self-hosted deployments, so the flow itself
+        (username checked, failure delay, session cookie attributes,
+        logout) is still asserted end to end — it just gates nothing.
         """
         pwd = "gate-test-secret"
         xff = {"X-Forwarded-For": "203.0.113.5"}
@@ -342,19 +351,17 @@ class TestCSLMeterV13(unittest.TestCase):
         csl_app.GATE_ENABLED = True
         csl_app._sessions.clear()
         try:
-            # API + SVG badge via proxy (XFF) without a session -> 401 JSON
+            # v1.5.0: public surfaces are OPEN via the proxy, no session,
+            # even with the gate env enabled
+            code_home, _, _ = self._raw("GET", "/", headers=xff)
+            self.assertEqual(code_home, 200)
             code_api, _, body_api = self._raw("GET", "/api/v1/plans", headers=xff)
-            self.assertEqual(code_api, 401)
-            self.assertIn("AUTH_REQUIRED", body_api)
+            self.assertEqual(code_api, 200)
+            self.assertNotIn("AUTH_REQUIRED", body_api)
             code_badge, _, _ = self._raw("GET", "/badge/plan/volcengine/coding-plan-lite.svg", headers=xff)
-            self.assertEqual(code_badge, 401)
+            self.assertEqual(code_badge, 200)
 
-            # HTML page via proxy without a session -> 302 to /login
-            code_home, hdrs_home, _ = self._raw("GET", "/", headers=xff)
-            self.assertEqual(code_home, 302)
-            self.assertEqual(hdrs_home.get("location"), "/login")
-
-            # Direct local request (no XFF) is exempt -> 200
+            # Direct local request -> 200 as well
             code_local, _, _ = self._raw("GET", "/api/v1/plans")
             self.assertEqual(code_local, 200)
 
@@ -395,7 +402,7 @@ class TestCSLMeterV13(unittest.TestCase):
             self.assertIn("HttpOnly", cookie_hdr)
             session_cookie = cookie_hdr.split(";")[0]
 
-            # The session opens API access via the proxy
+            # Session or not, the API stays public via the proxy
             authd = {"X-Forwarded-For": "203.0.113.5", "Cookie": session_cookie}
             code_auth, _, _ = self._raw("GET", "/api/v1/plans", headers=authd)
             self.assertEqual(code_auth, 200)
@@ -405,12 +412,12 @@ class TestCSLMeterV13(unittest.TestCase):
             self.assertEqual(code_again, 302)
             self.assertEqual(hdrs_again.get("location"), "/")
 
-            # /logout revokes the server-side session
+            # /logout still revokes the session record; surfaces stay public
             code_out, hdrs_out, _ = self._raw("GET", "/logout", headers=authd)
             self.assertEqual(code_out, 302)
             self.assertEqual(hdrs_out.get("location"), "/login")
-            code_revoked, _, _ = self._raw("GET", "/api/v1/plans", headers=authd)
-            self.assertEqual(code_revoked, 401)
+            code_after, _, _ = self._raw("GET", "/api/v1/plans", headers=authd)
+            self.assertEqual(code_after, 200)
         finally:
             csl_app.GATE_ENABLED, csl_app.GATE_PASSWORD_SHA256, csl_app.GATE_USER = saved
             csl_app._sessions.clear()
@@ -642,6 +649,61 @@ class TestCSLMeterV13(unittest.TestCase):
             code, _, body = self._get(path)
             self.assertEqual(code, 404, path)
             self.assertIn("NOT_FOUND", body)
+
+    def test_14_geo_kit_public_endpoints(self):
+        """v1.5.0 GEO kit: /llms.txt, /robots.txt, /sitemap.xml, home meta.
+
+        All three files are public (served to an anonymous proxied
+        request) with their real content; the robots file explicitly
+        allows the named AI crawlers and points at the sitemap; the
+        sitemap lists only URLs that really exist; the home page
+        carries the Google/Bing site-verification meta tags, canonical,
+        OG tags and JSON-LD.
+        """
+        xff = {"X-Forwarded-For": "203.0.113.9"}
+
+        code, hdrs, body = self._raw("GET", "/llms.txt", headers=xff)
+        self.assertEqual(code, 200)
+        self.assertIn("text/plain", hdrs.get("content-type", ""))
+        self.assertIn("CSL-Meter", body)
+        self.assertIn("Server-Verified", body)
+        self.assertIn("https://konspace.cc/", body)
+        self.assertIn("github.com/konspace-cc/csl-meter", body)
+
+        code, hdrs, body = self._raw("GET", "/robots.txt", headers=xff)
+        self.assertEqual(code, 200)
+        self.assertIn("text/plain", hdrs.get("content-type", ""))
+        for bot in ("GPTBot", "ChatGPT-User", "OAI-SearchBot", "PerplexityBot",
+                    "Perplexity-User", "ClaudeBot", "anthropic-ai",
+                    "Google-Extended", "CCBot", "Bingbot"):
+            self.assertIn(bot, body)
+            self.assertIn("Allow: /", body)
+        self.assertIn("Sitemap: https://konspace.cc/sitemap.xml", body)
+
+        code, hdrs, body = self._raw("GET", "/sitemap.xml", headers=xff)
+        self.assertEqual(code, 200)
+        self.assertIn("application/xml", hdrs.get("content-type", ""))
+        self.assertIn("<loc>https://konspace.cc/</loc>", body)
+        self.assertIn("<loc>https://konspace.cc/llms.txt</loc>", body)
+
+        code, _, home = self._raw("GET", "/", headers=xff)
+        self.assertEqual(code, 200)
+        self.assertIn(
+            'name="google-site-verification" content="1tBQmidYVGrz9zHr_PUhtJprdHrf-psjdJxIqIS2BD0"',
+            home,
+        )
+        self.assertIn(
+            'name="msvalidate.01" content="D296B471A77449FE422315A5CBFDF675"',
+            home,
+        )
+        self.assertIn('rel="canonical" href="https://konspace.cc/"', home)
+        self.assertIn('property="og:title"', home)
+        self.assertIn('property="og:description"', home)
+        self.assertIn('property="og:url" content="https://konspace.cc/"', home)
+        self.assertIn('property="og:type" content="website"', home)
+        self.assertIn('type="application/ld+json"', home)
+        self.assertIn('"@type": "Organization"', home)
+        self.assertIn('"@type": "WebSite"', home)
 
 
 class TestLegacySchemaMigration(unittest.TestCase):

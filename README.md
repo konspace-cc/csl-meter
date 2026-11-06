@@ -20,7 +20,8 @@ number.
 
 **https://konspace.cc**
 
-The demo deployment is access-gated while it runs on measured data, and every
+The live deployment is fully public — no login wall; probe submissions are
+protected by Cloudflare Turnstile instead. Every
 reading on it carries an explicit origin label:
 
 - **Simulated** — simulated baseline data, seeded for display. Never mixed
@@ -94,7 +95,7 @@ see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Path | What it is |
 |---|---|
-| `app.py` | Web server, JSON API, badges, access gate, Turnstile enforcement |
+| `app.py` | Web server, JSON API, badges, GEO files (llms.txt/robots/sitemap), Turnstile enforcement |
 | `csl_engine.py` | Probe engine, fingerprint/JSD scoring, SQLite store, migrations |
 | `scripts/run_live_t3_t4_eval.py` | Live evaluation CLI (consistency & account-risk measurements against a real key) |
 | `scripts/security_audit.py` | Credential-retention / SSRF / fail-closed audit suite |
