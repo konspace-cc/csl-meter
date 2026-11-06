@@ -5,7 +5,7 @@
 ## 一、基线状态声明与对外表述纪律
 
 1. **现行代码内 `GOLDEN_BASELINES` 的真实属性**：
-   - `csl_engine.GOLDEN_BASELINES` 中内置的 16 组多项分布为**未校准引擎先验值（Uncalibrated Engine Prior）**，尚未经过官方原生直连端点的 `N >= 210` 实测采样归档替换。
+   - `csl_engine.GOLDEN_BASELINES` 中内置的 16 组多项分布，其中 14 组为**未校准引擎先验值（Uncalibrated Engine Prior）**，尚未经过官方原生直连端点的 `N >= 210` 实测采样归档替换；`deepseek-v4.1-pro` 与 `deepseek-v4.1-flash` 两组已于 2026-11-06 由真实官方直连归档（N=210，eligible=true）替换为实测值，来源见第四节表后标注。
    - 在每个目标模型至少沉淀一份真实官方直连端点的原始采样 JSON 归档（`mode="baseline"`, `eligible_for_golden_baseline=true`, `N >= 210`）并经复核入库前，任何文档与界面均**不得将现行内置先验值称为「实测分布」**。
 2. **偏离读数的对外表述边界**：
    - 当待测套餐的去偏后分布与 `GOLDEN_BASELINES` 发生偏离（或最近邻 top-1 指向其他模型家族）时，系统与报告对外统一表述为**「实测输出分布与声称模型的基线不符」**，严禁在基线完成官方直连校准前直接定性为「已证实掉包」。
@@ -53,9 +53,9 @@
 
 校准工具 `scripts/calibrate_golden_baselines.py` 仅允许调用以下 **10 家官方原生直连服务商**（`OFFICIAL_DIRECT_PROVIDERS`），并强制校验 `--provider` 与 `--model` 的归属配对关系；所有带壳/聚合订阅端点（`opencode`, `commandcode`, `kilo`, `cursor`, `kiro`, `copilot`）均在 `EXCLUDED_NON_DIRECT_PROVIDERS` 中显式拦截拒绝（抛出 `PROVIDER_NOT_OFFICIAL_DIRECT`）。其中 `deepseek` 官方直连端点补齐为 `https://api.deepseek.com/chat/completions`（配对 `deepseek-v4.1-pro` 与 `deepseek-v4.1-flash`）。
 
-### 2. `csl_engine.GOLDEN_BASELINES` 现行代码内置未校准先验值表（16/16 逐字转录）
+### 2. `csl_engine.GOLDEN_BASELINES` 现行代码内置值表（16/16 逐字转录）
 
-下表逐值转录自 `csl_engine.GOLDEN_BASELINES`（由 `scripts/calibrate_golden_baselines.py --self-test` 在文档存在时自动校验 16/16 完全相等；文档缺失或表不完整时自检跳过表校验并告警，不阻断自检），状态均为**未校准先验值（Uncalibrated Engine Prior）**：
+下表逐值转录自 `csl_engine.GOLDEN_BASELINES`（由 `scripts/calibrate_golden_baselines.py --self-test` 在文档存在时自动校验 16/16 完全相等；文档缺失或表不完整时自检跳过表校验并告警，不阻断自检）。其中 14 款状态为**未校准先验值（Uncalibrated Engine Prior）**；`deepseek-v4.1-pro` 与 `deepseek-v4.1-flash` 两款状态为**已校准实测值（Calibrated，N=210 官方直连归档）**，来源见表后标注：
 
 | 序号 | 模型标识 (`claimed_model`) | 配对直连服务商 (`--provider`) | 官方直连端点 (`endpoint_url`) | 42 | 37 | 47 | 73 | 7 | 53 | 67 | 23 | 88 | other |
 | :---: | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -70,11 +70,16 @@
 | 9 | `kimi-k3` | `kimi` | `https://api.moonshot.cn/v1/chat/completions` | 0.16 | 0.25 | 0.12 | 0.20 | 0.07 | 0.05 | 0.05 | 0.03 | 0.04 | 0.03 |
 | 10 | `doubao-seed-2.1-turbo` | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3/chat/completions` | 0.19 | 0.18 | 0.08 | 0.12 | 0.14 | 0.06 | 0.06 | 0.05 | 0.08 | 0.04 |
 | 11 | `glm-5.3` | `zhipu` | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | 0.14 | 0.19 | 0.09 | 0.15 | 0.11 | 0.12 | 0.07 | 0.04 | 0.05 | 0.04 |
-| 12 | `deepseek-v4.1-pro` | `deepseek` | `https://api.deepseek.com/chat/completions` | 0.17 | 0.27 | 0.13 | 0.18 | 0.06 | 0.06 | 0.04 | 0.03 | 0.03 | 0.03 |
-| 13 | `deepseek-v4.1-flash` | `deepseek` | `https://api.deepseek.com/chat/completions` | 0.24 | 0.18 | 0.08 | 0.11 | 0.14 | 0.05 | 0.05 | 0.05 | 0.05 | 0.05 |
+| 12 | `deepseek-v4.1-pro` | `deepseek` | `https://api.deepseek.com/chat/completions` | 0.5619 | 0.1571 | 0.0571 | 0.1619 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0619 |
+| 13 | `deepseek-v4.1-flash` | `deepseek` | `https://api.deepseek.com/chat/completions` | 0.2238 | 0.1143 | 0.2048 | 0.4143 | 0.0048 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0381 |
 | 14 | `minimax-m3` | `minimax` | `https://api.minimax.chat/v1/text/chatcompletion_v2` | 0.18 | 0.15 | 0.10 | 0.14 | 0.12 | 0.08 | 0.08 | 0.06 | 0.05 | 0.04 |
 | 15 | `qwen3.8-max` | `bailian` | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions` | 0.20 | 0.21 | 0.09 | 0.15 | 0.10 | 0.06 | 0.05 | 0.04 | 0.06 | 0.04 |
 | 16 | `mimo-v2.6-pro` | `xiaomi` | `https://api.mimo.xiaomi.com/v1/chat/completions` | 0.21 | 0.17 | 0.10 | 0.14 | 0.11 | 0.07 | 0.06 | 0.05 | 0.05 | 0.04 |
+
+**已校准两款来源标注（其余 14 款维持「未校准先验」不变）：**
+
+- `deepseek-v4.1-pro`：归档 `deepseek-v4.1-pro-baseline-2026-11-06.json`（105,253 字节，SHA256 `d8e9fe1ba7102acd53ee630dce01f35bd47b3ee3a2f01ea6d8f91d01e2881b9b`），采样映射声称名 `deepseek-v4.1-pro` ↔ 官方名 `deepseek-v4-pro`，2026-11-06，N=210，valid 210/210，eligible=true。引擎值取归档 `measured_distribution` 原值（全精度，无取整）；上表按 4 位小数显示，自检按 4 位小数比对。
+- `deepseek-v4.1-flash`：归档 `deepseek-v4.1-flash-baseline-2026-11-06.json`（104,977 字节，SHA256 `ae32db718f5074684f1719aa343a001c938e6732e81476d35d0cfda196fda8c6`），采样映射声称名 `deepseek-v4.1-flash` ↔ 官方名 `deepseek-flash`，2026-11-06，N=210，valid 210/210，eligible=true。引擎值取归档 `measured_distribution` 原值（全精度，无取整）；上表按 4 位小数显示，自检按 4 位小数比对。
 
 ## 五、原始采样归档结构与命令行操作指南
 
