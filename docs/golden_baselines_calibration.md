@@ -81,7 +81,7 @@
 ### 1. 归档 JSON 必含字段（逐 Probe 可复算）
 
 每次校准运行产出的 JSON 归档文件包含以下完整证据链字段：
-- `run_conditions`：`mode`（`"baseline"` 或 `"smoke"`）、`eligible_for_golden_baseline`、`provider_slug`、`claimed_model`、`endpoint_url`、`protocol`、`temperature` (`1.0`)、`max_tokens` (`256`)、`top_p_sent` (`false`)、`concurrency` (`4`)、`prompt_pool_size` (`14`)、`prompt_pool_sha256`、`engine_commit_sha`。
+- `run_conditions`：`mode`（`"baseline"` 或 `"smoke"`）、`eligible_for_golden_baseline`、`provider_slug`、`claimed_model`、`sampling_model_id`、`endpoint_url`、`protocol`、`temperature` (`1.0`)、`max_tokens` (`256`)、`top_p_sent` (`false`)、`concurrency` (`4`)、`prompt_pool_size` (`14`)、`prompt_pool_sha256`、`engine_commit_sha`。基线以声称名归档，采样可用同家官方名，映射以 run_conditions 双名为准：`claimed_model` 为归档身份名（须在官方直连模型池与 `GOLDEN_BASELINES` 内），`sampling_model_id` 为实际发给 API 的采样模型名（缺省等于声称名；显式给出时须与声称名同服务商，跨家采样直接拒绝）。
 - `summary_metrics`：`total_probes`、`http_ok_probes`、`http_failed_probes`、`rate_429_count`、`valid_extracted_samples`、`min_required_valid_samples`、`empty_extraction_count`、`total_elapsed_s`、`total_prompt_tokens`、`total_completion_tokens`、`total_cached_tokens`、`total_tokens_consumed`、`token_budget_hard_cap`。
 - `raw_counts` 与 `measured_distribution`：仅基于有效非空提取整数统计的 10 桶原始频数与归一化概率分布。
 - `comparison_with_uncalibrated_engine_prior`：与代码现行内置未校准先验分布的 `jsd_to_engine_prior` 及 `similarity_to_engine_prior_pct`。

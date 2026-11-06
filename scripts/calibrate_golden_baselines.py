@@ -22,6 +22,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -155,17 +156,63 @@ def get_prompt_pool_sha256() -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _model_name_prefix(model_id: str) -> str:
+    """
+    Leading lowercase-letter prefix of a model id (e.g. 'deepseek' from
+    'deepseek-v4.1-pro', 'qwen' from 'qwen3.8-max'). Used for the
+    same-provider sampling check: a sampling model must share the claimed
+    model's prefix, so a cross-provider sampling name is rejected.
+    """
+    m = re.match(r"^[a-z]+", (model_id or "").strip().lower())
+    return m.group(0) if m else ""
+
+
+def _validate_sampling_model(claimed_model: str, sampling_model: str) -> str:
+    """
+    Resolve and validate the sampling model id.
+    - Empty/None sampling_model defaults to the claimed model (no mapping).
+    - A non-empty sampling_model must share the claimed model's provider
+      prefix (same-provider consistency); cross-provider sampling is
+      rejected outright.
+    Returns the resolved sampling model id.
+    """
+    claimed = (claimed_model or "").strip()
+    sampling = (sampling_model or "").strip()
+    if not sampling:
+        return claimed
+    claimed_prefix = _model_name_prefix(claimed)
+    sampling_prefix = _model_name_prefix(sampling)
+    if not claimed_prefix or not sampling_prefix or sampling_prefix != claimed_prefix:
+        raise ValueError(
+            f"SAMPLING_MODEL_PROVIDER_MISMATCH: 采样模型 '{sampling}' 与声称模型 '{claimed}' "
+            f"不属于同一服务商（前缀不一致：'{sampling_prefix}' vs '{claimed_prefix}'），"
+            "跨服务商采样直接拒绝。"
+        )
+    # Prefix-boundary check: the char right after the shared prefix must not
+    # be a lowercase letter (so 'deepseekx-...' cannot pass as 'deepseek').
+    if len(sampling) > len(sampling_prefix) and sampling[len(sampling_prefix)].islower():
+        raise ValueError(
+            f"SAMPLING_MODEL_PROVIDER_MISMATCH: 采样模型 '{sampling}' 与声称模型 '{claimed}' "
+            "前缀边界不一致，跨服务商采样直接拒绝。"
+        )
+    return sampling
+
+
 def validate_calibration_target(
     provider_slug: str,
     claimed_model: str,
     mode: str,
     samples: int,
     mock_base_url: str = None,
+    sampling_model: str = None,
 ) -> tuple:
     """
     Validate provider official-direct eligibility, model-provider pairing,
     mode ("baseline" vs "smoke"), and sample count constraints.
-    Returns (endpoint_url, protocol, provider_meta).
+    Returns (endpoint_url, protocol, provider_meta, resolved_sampling_model).
+    The claimed model must stay in the provider pool (and hence in
+    GOLDEN_BASELINES); the sampling model must be same-provider as the
+    claimed model (see _validate_sampling_model).
     """
     provider_slug = (provider_slug or "").strip()
     claimed_model = (claimed_model or "").strip()
@@ -193,6 +240,10 @@ def validate_calibration_target(
             f"MODEL_PROVIDER_MISMATCH: 模型 '{claimed_model}' 不属于服务商 '{provider_slug}' 的官方直连模型池 "
             f"{list(allowed_models)}。"
         )
+
+    # Sampling-model mapping (v1.3.9): claimed name stays the archive identity
+    # and must remain in the pool; the sampling name must be same-provider.
+    resolved_sampling_model = _validate_sampling_model(claimed_model, sampling_model)
 
     if samples <= 0 or (samples % BATTERY_SIZE != 0):
         raise ValueError(
@@ -226,7 +277,7 @@ def validate_calibration_target(
         else:
             endpoint_url = prov_meta["endpoint"]
 
-    return endpoint_url, prov_meta["protocol"], prov_meta
+    return endpoint_url, prov_meta["protocol"], prov_meta, resolved_sampling_model
 
 
 def run_calibration(
@@ -238,6 +289,7 @@ def run_calibration(
     output_path: str = None,
     mock_base_url: str = None,
     quiet: bool = False,
+    sampling_model: str = None,
 ) -> dict:
     """
     Execute N distribution probes against the official direct endpoint with:
@@ -246,16 +298,19 @@ def run_calibration(
     - strict valid-extraction sufficiency check (>= ceil(N * 8 / 14))
     - proportional 30,000-token-per-battery budget enforcement
     - full per-probe telemetry & run_conditions persisted in the returned/saved dict
+    The sampling request uses sampling_model (defaults to claimed_model);
+    the archive identity stays the claimed model.
     """
     if not api_key or len(api_key.strip()) < 6:
         raise ValueError("INVALID_API_KEY: 未读取到有效的官方 API Key（请检查环境变量设置）。")
 
-    endpoint_url, protocol, prov_meta = validate_calibration_target(
+    endpoint_url, protocol, prov_meta, resolved_sampling_model = validate_calibration_target(
         provider_slug=provider_slug,
         claimed_model=claimed_model,
         mode=mode,
         samples=samples,
         mock_base_url=mock_base_url,
+        sampling_model=sampling_model,
     )
 
     temperature = 1.0
@@ -265,7 +320,12 @@ def run_calibration(
     token_budget_cap = num_batteries * BATTERY_TOKEN_BUDGET_HARD_CAP
 
     if not quiet:
-        print(f"[*] Mode: {mode} | Provider: {provider_slug} ({prov_meta['name']}) | Model: {claimed_model}")
+        model_note = (
+            f"Model: {claimed_model} (sampling: {resolved_sampling_model})"
+            if resolved_sampling_model != claimed_model
+            else f"Model: {claimed_model}"
+        )
+        print(f"[*] Mode: {mode} | Provider: {provider_slug} ({prov_meta['name']}) | {model_note}")
         print(f"[*] Official Endpoint: {endpoint_url}")
         print(f"[*] Samples: {samples} ({num_batteries} batteries x {BATTERY_SIZE} prompts, concurrency={concurrency})")
 
@@ -279,7 +339,7 @@ def run_calibration(
             endpoint_url,
             protocol,
             api_key,
-            claimed_model,
+            resolved_sampling_model,
             prompt_text,
             temperature,
             max_tokens,
@@ -423,6 +483,7 @@ def run_calibration(
             "provider_name": prov_meta["name"],
             "model_family": prov_meta["family"],
             "claimed_model": claimed_model,
+            "sampling_model_id": resolved_sampling_model,
             "endpoint_url": endpoint_url,
             "protocol": protocol,
             "temperature": temperature,
@@ -549,6 +610,34 @@ def run_self_test() -> dict:
     except ValueError as e:
         assert "MODEL_PROVIDER_MISMATCH" in str(e)
 
+    # v1.3.9 mapping path: same-provider sampling model passes, cross-provider rejected.
+    for claimed, sampling in (
+        ("deepseek-v4.1-pro", "deepseek-v4-pro"),
+        ("deepseek-v4.1-flash", "deepseek-flash"),
+        ("kimi-k3.1-pro", "kimi-k3-pro"),
+    ):
+        provider = "deepseek" if claimed.startswith("deepseek") else "kimi"
+        endpoint_url, protocol, prov_meta, resolved = validate_calibration_target(
+            provider, claimed, "baseline", 210, sampling_model=sampling
+        )
+        assert resolved == sampling, f"Expected sampling model {sampling}, got {resolved}"
+    # Default (no --sampling-model): sampling model equals the claimed model.
+    _, _, _, resolved_default = validate_calibration_target(
+        "deepseek", "deepseek-v4.1-pro", "baseline", 210
+    )
+    assert resolved_default == "deepseek-v4.1-pro"
+    for claimed, bad_sampling in (
+        ("deepseek-v4.1-pro", "gpt-5.6-sol"),
+        ("kimi-k3.1-pro", "deepseek-v4-pro"),
+        ("deepseek-v4.1-flash", "claude-sonnet-5"),
+    ):
+        provider = "deepseek" if claimed.startswith("deepseek") else "kimi"
+        try:
+            validate_calibration_target(provider, claimed, "baseline", 210, sampling_model=bad_sampling)
+            raise AssertionError(f"Expected cross-provider sampling {bad_sampling} to be rejected")
+        except ValueError as e:
+            assert "SAMPLING_MODEL_PROVIDER_MISMATCH" in str(e)
+
     for bad_n in (50, 100, 196, 200):
         try:
             validate_calibration_target("kimi", "kimi-k3.1-pro", "baseline", bad_n)
@@ -585,6 +674,32 @@ def run_self_test() -> dict:
             assert saved["run_conditions"]["max_tokens"] == 256
             assert saved["run_conditions"]["top_p_sent"] is False
             assert saved["run_conditions"]["prompt_pool_size"] == 14
+            # v1.3.9 dual-name recording: default (no mapping) records both names, identical.
+            assert saved["run_conditions"]["claimed_model"] == "kimi-k3.1-pro"
+            assert saved["run_conditions"]["sampling_model_id"] == "kimi-k3.1-pro"
+
+            # v1.3.9 mapped smoke run: sampling uses the official name, archive
+            # identity stays the claimed name, both names recorded.
+            _SelfTestMockHandler._counter = 0
+            mapped_json = os.path.join(tmpdir, "smoke_archive_mapped.json")
+            _ = run_calibration(
+                provider_slug="kimi",
+                claimed_model="kimi-k3.1-pro",
+                api_key="sk-ephemeral-self-test-key",
+                samples=14,
+                mode="smoke",
+                output_path=mapped_json,
+                mock_base_url=f"http://127.0.0.1:{port}",
+                quiet=True,
+                sampling_model="kimi-k3-pro",
+            )
+            assert os.path.exists(mapped_json)
+            with open(mapped_json, "r", encoding="utf-8") as f:
+                mapped = json.load(f)
+            assert mapped["run_conditions"]["claimed_model"] == "kimi-k3.1-pro"
+            assert mapped["run_conditions"]["sampling_model_id"] == "kimi-k3-pro"
+            assert len(mapped["probe_records"]) == 14
+            assert mapped["summary_metrics"]["valid_extracted_samples"] == 14
             assert len(saved["probe_records"]) == 28
             assert len(saved["extracted_tokens"]) == 28
             assert saved["summary_metrics"]["valid_extracted_samples"] == 28
@@ -677,6 +792,14 @@ def main():
         help="Claimed model ID paired with the official provider (e.g. kimi-k3.1-pro, gpt-5.6-sol, deepseek-v4.1-pro)",
     )
     parser.add_argument(
+        "--sampling-model",
+        default=None,
+        help="Official model ID actually sent to the API for sampling (same provider as --model). "
+        "Defaults to --model (claimed name). Archive identity stays the claimed model; "
+        "both names are recorded in run_conditions (claimed_model, sampling_model_id). "
+        "Example: --model deepseek-v4.1-pro --sampling-model deepseek-v4-pro",
+    )
+    parser.add_argument(
         "--api-key-env",
         default="CSL_CALIBRATION_API_KEY",
         help="Environment variable name holding the official API key (default: CSL_CALIBRATION_API_KEY)",
@@ -727,6 +850,7 @@ def main():
         mode=args.mode,
         output_path=args.output,
         mock_base_url=args.mock_base_url,
+        sampling_model=args.sampling_model,
     )
 
 
