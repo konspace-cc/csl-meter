@@ -55,7 +55,7 @@
 
 ### 2. `csl_engine.GOLDEN_BASELINES` 现行代码内置未校准先验值表（16/16 逐字转录）
 
-下表逐值转录自 `csl_engine.GOLDEN_BASELINES`（由 `scripts/calibrate_golden_baselines.py --self-test` 自动校验 16/16 完全相等），状态均为**未校准先验值（Uncalibrated Engine Prior）**：
+下表逐值转录自 `csl_engine.GOLDEN_BASELINES`（由 `scripts/calibrate_golden_baselines.py --self-test` 在文档存在时自动校验 16/16 完全相等；文档缺失或表不完整时自检跳过表校验并告警，不阻断自检），状态均为**未校准先验值（Uncalibrated Engine Prior）**：
 
 | 序号 | 模型标识 (`claimed_model`) | 配对直连服务商 (`--provider`) | 官方直连端点 (`endpoint_url`) | 42 | 37 | 47 | 73 | 7 | 53 | 67 | 23 | 88 | other |
 | :---: | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
