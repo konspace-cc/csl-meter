@@ -572,6 +572,23 @@ table.data-table td.num, table.data-table th.num {
   height: 100%;
   background: var(--accent-gradient);
 }
+/* Provider / plan cell: full name wraps to two lines, no ellipsis (all screens). */
+table.data-table td.provider-cell { white-space: normal; max-width: 190px; }
+table.data-table td.provider-cell .plan-name {
+  white-space: normal; word-break: break-word; line-height: 1.35;
+}
+@media (min-width: 721px) {
+  /* Desktop table density (v1.5.6): fit both home tables in the 1380px shell
+     without horizontal scroll; mobile (<=720px) untouched. */
+  table.data-table th { padding: 8px 5px; font-size: 11px; }
+  table.data-table td { padding: 8px 5px; font-size: 12px; }
+  table.data-table td.tput-cell { line-height: 1.35; }
+  table.data-table td.tput-cell .tput-sub {
+    font-size: 11px; color: var(--text-muted);
+  }
+  .csl-bar-bg { width: 40px; }
+  .csl-bar-wrap { gap: 6px; }
+}
 .tag-chip {
   display: inline-block;
   padding: 3px 10px;
@@ -754,7 +771,7 @@ def render_home_page(query_params: dict) -> str:
     verified_total = db.count_verified_reports()
     site_key = os.environ.get("TURNSTILE_SITE_KEY", "").strip()
 
-    def sort_link(col_key: str, label: str, is_num: bool = True) -> str:
+    def sort_link(col_key: str, label: str, is_num: bool = True, title: str = "") -> str:
         next_ord = "asc" if (sort_by == col_key and order == "desc") else "desc"
         arrow = ""
         cls = ""
@@ -762,7 +779,8 @@ def render_home_page(query_params: dict) -> str:
             arrow = " ↓" if order == "desc" else " ↑"
             cls = "sorted"
         th_cls = 'class="num"' if is_num else ""
-        return f'<th {th_cls}><a class="{cls}" href="/?category={html.escape(cat)}&amp;origin={html.escape(origin_filter)}&amp;sort={col_key}&amp;order={next_ord}">{label}{arrow}</a></th>'
+        title_attr = f' title="{html.escape(title)}"' if title else ""
+        return f'<th {th_cls}><a class="{cls}"{title_attr} href="/?category={html.escape(cat)}&amp;origin={html.escape(origin_filter)}&amp;sort={col_key}&amp;order={next_ord}">{label}{arrow}</a></th>'
 
     rows_html = []
     if not plans:
@@ -781,9 +799,9 @@ def render_home_page(query_params: dict) -> str:
         rows_html.append(
             f"""
             <tr>
-              <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;">
-                <div style="font-weight:600;color:var(--text-primary);">{html.escape(p['provider_name'])}</div>
-                <div style="color:var(--text-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;">{html.escape(p['plan_name'])}</div>
+              <td class="provider-cell" title="{html.escape(p['provider_name'])} — {html.escape(p['plan_name'])}">
+                <div style="font-weight:600;color:var(--text-primary);white-space:nowrap;">{html.escape(p['provider_name'])}</div>
+                <div class="plan-name" style="color:var(--text-muted);font-size:11px;">{html.escape(p['plan_name'])}</div>
               </td>
               <td><span class="{origin_chip_cls}">{origin_tag}</span></td>
               <td class="mono">{html.escape(p['claimed_model'])} <span style="color:var(--text-muted);">[{html.escape(p['harness_type'])}]</span></td>
@@ -800,7 +818,7 @@ def render_home_page(query_params: dict) -> str:
               <td class="mono">{html.escape(p['nearest_profile'])}</td>
               <td class="num">+{p['peak_delta_csl']:.1f}</td>
               <td class="num">{p['token_ratio']:.2f}x <span style="color:var(--text-muted);">({p['cache_hit_pct']:.0f}%)</span></td>
-              <td class="num">{p['median_tps']:.0f}T <span style="color:var(--text-muted);">/{p['ttft_ms']}ms/{p['rate_429_pct']:.1f}%</span></td>
+              <td class="num tput-cell"><div>{p['median_tps']:.0f}T</div><div class="tput-sub">{p['ttft_ms']}ms · {p['rate_429_pct']:.1f}%</div></td>
               <td class="num">
                 <a href="/timeline?p1={p_slug}/{pl_slug}" class="mono" style="font-size:11px;">峰谷</a> ·
                 <a href="/badge/plan/{p_slug}/{pl_slug}.svg" class="mono" style="font-size:11px;" target="_blank">徽章</a>
@@ -824,7 +842,7 @@ def render_home_page(query_params: dict) -> str:
             <tr>
               <td class="mono"><a href="/r/{rid}">#{rid}</a></td>
               <td class="mono" style="color:var(--text-muted);">{html.escape(r['created_at'])}</td>
-              <td>{html.escape(r['provider_name'])} · {html.escape(r['plan_name'])}</td>
+              <td class="provider-cell" title="{html.escape(r['provider_name'])} · {html.escape(r['plan_name'])}">{html.escape(r['provider_name'])} · {html.escape(r['plan_name'])}</td>
               <td class="mono">{html.escape(r['claimed_model'])}</td>
               <td class="mono" style="color:var(--text-muted);">{html.escape(vmode)}</td>
               <td class="num" style="color:var(--text-primary);font-weight:700;">{r['csl_index']:.1f}</td>
@@ -968,7 +986,7 @@ def render_home_page(query_params: dict) -> str:
               <th>最接近基线 (Top-1)</th>
               {sort_link('peak_delta_csl', '峰谷 Δ')}
               {sort_link('token_ratio', '计费/缓存')}
-              {sort_link('median_tps', '吞吐/TTFT/429')}
+              {sort_link('median_tps', '吞吐', title='吞吐 / TTFT / 429率')}
               <th class="num">引用</th>
             </tr>
           </thead>
