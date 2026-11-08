@@ -350,9 +350,9 @@ def compute_irreversible_key_hash(api_key: str) -> str:
 
 def validate_ssrf_whitelist(provider_slug: str, custom_url: str = None) -> tuple:
     if custom_url:
-        return False, "SSRF_POLICY_BLOCKED: 禁止提交自定义 Base URL 或任意外部地址，仅允许白名单官方端点。"
+        return False, "SSRF_POLICY_BLOCKED: custom Base URLs and arbitrary external addresses are forbidden; only whitelisted official endpoints are allowed."
     if provider_slug not in ALLOWED_PROVIDERS:
-        return False, f"SSRF_POLICY_BLOCKED: 服务商 '{provider_slug}' 不在首期官方白名单池内。"
+        return False, f"SSRF_POLICY_BLOCKED: provider '{provider_slug}' is not in the official whitelist pool."
     if _TEST_UPSTREAM_BASE_URL:
         return True, f"{_TEST_UPSTREAM_BASE_URL}/{provider_slug}"
     return True, ALLOWED_PROVIDERS[provider_slug]["endpoint"]
@@ -574,9 +574,9 @@ def execute_real_upstream_probes(
     def _enforce_budget(spent):
         if spent > PROBE_TOKEN_BUDGET:
             raise ValueError(
-                f"PROBE_TOKEN_BUDGET_EXCEEDED: 本轮探针真实用量已达 {spent} tokens，"
-                f"超过单轮硬顶 {PROBE_TOKEN_BUDGET} tokens（用户 2026-11-06 裁决）；"
-                "已中止本轮探测，不生成报告。"
+                f"PROBE_TOKEN_BUDGET_EXCEEDED: this round's real probe usage reached {spent} tokens, "
+                f"exceeding the per-round hard cap of {PROBE_TOKEN_BUDGET} tokens (owner ruling 2026-11-06); "
+                "probe aborted, no report generated."
             )
 
     dist_results = []
@@ -633,8 +633,8 @@ def execute_real_upstream_probes(
         errors = [r.get("error", "ERR") for r in all_calls if not r.get("ok")]
         err_summary = errors[0] if errors else "INSUFFICIENT_SAMPLES"
         raise ValueError(
-            f"UPSTREAM_PROBE_FAILED: 真实上游调用未通过（成功 {len(ok_dist)}/14 次，首错: {err_summary}）。"
-            "请核对 API Key 有效性、模型权限或上游网络连通性；系统拒绝生成模拟报告。"
+            f"UPSTREAM_PROBE_FAILED: real upstream calls failed (succeeded {len(ok_dist)}/14, first error: {err_summary})."
+            "Check the API key validity, model permissions or upstream connectivity; the system refuses to fabricate a simulated report."
         )
 
     # Tally empirical distribution and odd/even split-half distributions
@@ -1495,7 +1495,7 @@ class CSLDatabase:
 
         plan = self.get_plan(provider_slug, plan_slug)
         if not plan:
-            raise ValueError(f"PLAN_NOT_FOUND: 未找到套餐 '{provider_slug}/{plan_slug}'。")
+            raise ValueError(f"PLAN_NOT_FOUND: plan '{provider_slug}/{plan_slug}' not found.")
 
         claimed_model = str(payload.get("claimed_model") or plan["claimed_model"]).strip()
         if claimed_model not in GOLDEN_BASELINES:
@@ -1506,7 +1506,7 @@ class CSLDatabase:
         api_key = str(payload.get("api_key", "")).strip()
         try:
             if not api_key or len(api_key) < 6:
-                raise ValueError("INVALID_CREDENTIAL: 请输入有效的临时测试凭证（长度至少 6 位）。")
+                raise ValueError("INVALID_CREDENTIAL: please enter a valid temporary test credential (at least 6 characters).")
             key_dedup_hash = compute_irreversible_key_hash(api_key)
             live_telemetry = execute_real_upstream_probes(
                 provider_slug=provider_slug,
@@ -1529,10 +1529,10 @@ class CSLDatabase:
         extracted_samples = live_telemetry["extracted_samples"]
         if extracted_samples < 8:
             raise ValueError(
-                "INSUFFICIENT_PROBE_CONTENT: 探针样本不足——"
-                f"分布采样中仅 {extracted_samples} 次提取到数字"
-                "（其余响应正文为空、推理耗尽或思考未产出结论），"
-                "无法形成可信识别结论；系统拒绝生成报告。"
+                "INSUFFICIENT_PROBE_CONTENT: insufficient probe samples -- "
+                f"only {extracted_samples} numeric extractions from the distribution sampling "
+                "(the remaining responses were empty, reasoning-exhausted or produced no conclusion), "
+                "cannot form a credible identification; the system refuses to generate a report."
             )
 
         obs_dist = live_telemetry["obs_dist"]
