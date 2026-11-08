@@ -65,10 +65,36 @@ _sessions_lock = threading.Lock()
 DEMO_NOTICE_ZH = "本站数据全部公开：标注 Simulated · 模拟生成 的是模拟基线数据，标注 Server-Verified 的是真实探测记录，请按标注区分；黄金基线校准进行中"
 DEMO_NOTICE_EN = "PUBLIC DATA - entries labeled Simulated are simulated baselines; entries labeled Server-Verified are real probe records. Golden baselines are being calibrated."
 DEMO_BANNER = (
-    '<div style="position:sticky;top:0;z-index:9999;background:linear-gradient(90deg,#FFFBEB,#FEF3C7);color:#92400E;'
-    'font:600 13px/1.5 system-ui,sans-serif;text-align:center;padding:8px 12px;'
-    'border-bottom:1px solid #F59E0B">'
-    "🌐 CSL-Meter 公开观测台 PUBLIC — " + DEMO_NOTICE_ZH + " · " + DEMO_NOTICE_EN + " (konspace.cc)</div>"
+    '<div class="calib-strip" role="region" aria-label="公开数据标注说明">'
+    '<div class="calib-strip__inner">'
+    '<span class="calib-strip__tag">PUBLIC CALIBRATION</span>'
+    '<span class="calib-strip__text">CSL-Meter 公开观测台 — '
+    + DEMO_NOTICE_ZH
+    + " · "
+    + DEMO_NOTICE_EN
+    + " (konspace.cc)</span>"
+    "</div></div>"
+)
+
+FONT_LATIN_WOFF2_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "assets",
+    "fonts",
+    "csl-sans-latin.woff2",
+)
+try:
+    with open(FONT_LATIN_WOFF2_PATH, "rb") as _font_fh:
+        _FONT_LATIN_WOFF2_BYTES = _font_fh.read()
+except OSError:
+    _FONT_LATIN_WOFF2_BYTES = b""
+
+BRAND_MARK_SVG = (
+    '<svg class="brand-mark-svg" width="16" height="16" viewBox="0 0 16 16" '
+    'fill="none" aria-hidden="true">'
+    '<rect x="1.25" y="1.25" width="13.5" height="13.5" rx="2" stroke="currentColor" stroke-width="1.4"/>'
+    '<path d="M3.5 10.5L6.3 7.2L8.8 9.2L12.5 4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<circle cx="12.5" cy="4.8" r="1.4" fill="currentColor"/>'
+    "</svg>"
 )
 
 # ---------------------------------------------------------------------------
@@ -286,229 +312,833 @@ def _global_data_status_meta() -> dict:
 
 
 SHARED_CSS = """
+@font-face {
+  font-family: 'CSL Instrument Sans';
+  src: url('/assets/fonts/csl-sans-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  ascent-override: 96%;
+  descent-override: 24%;
+}
 :root {
-  --bg-canvas: #F5F8FD;
+  --bg-canvas: #F4F6F9;
   --bg-surface: #FFFFFF;
-  --bg-elevated: #EDF2FA;
-  --border-subtle: #E2E8F2;
-  --border-focus: #6D5DF6;
-  --text-primary: #0C1222;
-  --text-body: #1E293B;
-  --text-muted: #64748B;
-  --accent-blue: #2E6BFF;
-  --accent-bright: #7C3AED;
-  --accent-dim: rgba(46, 107, 255, 0.08);
-  --accent-start: #2E6BFF;
-  --accent-end: #7C3AED;
-  --accent-gradient: linear-gradient(135deg, #2E6BFF 0%, #6D5DF6 55%, #7C3AED 100%);
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.07), 0 1px 3px rgba(16, 24, 40, 0.05);
-  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.06);
-  --radius-card: 16px;
-  --radius-pill: 999px;
-  --font-sans: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, 'JetBrains Mono', 'DejaVu Sans Mono', monospace;
+  --bg-subtle: #EEF2F7;
+  --bg-elevated: #EEF2F7;
+  --border-hairline: #DCE3EC;
+  --border-subtle: #DCE3EC;
+  --border-strong: #B8C4D4;
+  --border-focus: #0F52BA;
+  --text-primary: #142033;
+  --text-body: #24344D;
+  --text-muted: #4B5E78;
+  --accent: #0F52BA;
+  --accent-blue: #0F52BA;
+  --accent-bright: #0F52BA;
+  --accent-hover: #0B3F91;
+  --accent-soft: #E8F0FE;
+  --accent-dim: #E8F0FE;
+  --accent-border: #93B8F8;
+  --status-sim-fg: #8A4308;
+  --status-sim-bg: #FFF7EB;
+  --status-sim-bd: #F3C68F;
+  --status-ver-fg: #0F5E36;
+  --status-ver-bg: #ECF9F2;
+  --status-ver-bd: #8AD5B0;
+  --status-err-fg: #A61B1B;
+  --status-err-bg: #FDF2F2;
+  --status-err-bd: #F5B7B7;
+  --chart-grid: #DCE3EC;
+  --chart-ref: #64748B;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --shell-max: 1380px;
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-card: 8px;
+  --shadow-panel: 0 1px 2px rgba(20, 32, 51, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(15, 82, 186, 0.18);
+  --fs-hero: clamp(1.75rem, 2.2vw, 2.25rem);
+  --fs-h1: clamp(1.1875rem, 1.5vw, 1.375rem);
+  --fs-h2: 0.9375rem;
+  --fs-body: 0.875rem;
+  --fs-table: 0.8125rem;
+  --fs-sm: 0.75rem;
+  --fs-xs: 0.6875rem;
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 280ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --font-sans: 'CSL Instrument Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Noto Sans Mono CJK SC', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-canvas: #0E1520;
+    --bg-surface: #162030;
+    --bg-subtle: #1C293D;
+    --bg-elevated: #1C293D;
+    --border-hairline: #26354B;
+    --border-subtle: #26354B;
+    --border-strong: #384D6B;
+    --border-focus: #4D8EFF;
+    --text-primary: #E6ECF5;
+    --text-body: #C5D1E0;
+    --text-muted: #8E9FB7;
+    --accent: #4D8EFF;
+    --accent-blue: #4D8EFF;
+    --accent-bright: #4D8EFF;
+    --accent-hover: #6BA1FF;
+    --accent-soft: rgba(77, 142, 255, 0.16);
+    --accent-dim: rgba(77, 142, 255, 0.16);
+    --accent-border: rgba(77, 142, 255, 0.44);
+    --status-sim-fg: #F7B955;
+    --status-sim-bg: #291E0E;
+    --status-sim-bd: #664614;
+    --status-ver-fg: #3DD68C;
+    --status-ver-bg: #0F291E;
+    --status-ver-bd: #1E5C3E;
+    --status-err-fg: #FF6B6B;
+    --status-err-bg: #2D1418;
+    --status-err-bd: #6E262E;
+    --chart-grid: #26354B;
+    --chart-ref: #8E9FB7;
+    --shadow-panel: 0 1px 3px rgba(6, 10, 18, 0.35);
+    --shadow-focus: 0 0 0 3px rgba(77, 142, 255, 0.25);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   background-color: var(--bg-canvas);
-  background-image: radial-gradient(1200px 420px at 50% -120px, rgba(46, 107, 255, 0.14), rgba(124, 58, 237, 0.08) 45%, transparent 70%);
-  background-repeat: no-repeat;
   color: var(--text-body);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-a { color: var(--accent-blue); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: var(--shadow-focus);
+}
 .mono, .num {
   font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums slashed-zero;
   font-feature-settings: "tnum" 1, "zero" 1;
 }
-.demo-banner {
-  background: linear-gradient(90deg, #FFFBEB, #FEF3C7);
-  border-bottom: 1px solid #F59E0B;
-  color: #92400E;
-  font-size: 13px;
-  padding: 9px 20px;
-  text-align: center;
+.tnum {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum" 1, "zero" 1;
 }
-.demo-banner strong { color: #78350F; }
-.shell {
-  max-width: 1380px;
+.calib-strip {
+  background: var(--status-sim-bg);
+  border-bottom: 1px solid var(--status-sim-bd);
+  color: var(--status-sim-fg);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.calib-strip__inner {
+  max-width: var(--shell-max);
   margin: 0 auto;
-  padding: 0 20px 48px;
+  padding: var(--sp-2) var(--sp-5);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.calib-strip__tag {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--status-sim-bd);
+  background: var(--bg-surface);
+  color: var(--status-sim-fg);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.calib-strip__text {
+  font-weight: 500;
+}
+.shell {
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: 0 var(--sp-5) var(--sp-10);
 }
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 18px 0;
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 22px;
+  gap: var(--sp-3);
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--border-hairline);
+  margin-bottom: var(--sp-4);
 }
 .brand-wrap {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: var(--sp-3);
+  min-width: 0;
 }
 .brand-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: var(--accent-gradient);
-  border: 0;
-  color: #FFFFFF;
-  font-family: var(--font-sans);
+  gap: var(--sp-2);
+  background: var(--text-primary);
+  border: 1px solid var(--text-primary);
+  color: var(--bg-surface);
+  font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-sm);
+  letter-spacing: 0.01em;
   padding: 6px 14px;
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-sm);
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
+.brand-badge:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
+  text-decoration: none;
+}
+.brand-mark-svg { flex-shrink: 0; }
 .brand-title {
   color: var(--text-primary);
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--fs-body);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 .brand-sub {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-xs);
+  line-height: 1.35;
 }
 .nav-links {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 2px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  padding: 4px;
+  border-radius: 999px;
 }
 .nav-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
-  border-radius: var(--radius-pill);
-  font-size: 13px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-body);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid var(--border-subtle);
+  background: transparent;
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .nav-btn:hover {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
+  color: var(--accent);
+  background: var(--bg-surface);
   text-decoration: none;
 }
 .nav-btn.active {
-  border-color: transparent;
-  color: #FFFFFF;
-  background: var(--accent-gradient);
+  color: var(--bg-surface);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
   text-decoration: none;
+}
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-body);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.btn-action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  text-decoration: none;
+}
+/* Artificial Analysis Inspired Hero, Triptych & Pareto Deck */
+.aa-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: var(--sp-6);
+  align-items: start;
+  padding: var(--sp-2) 0 var(--sp-5);
+  margin-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--border-hairline);
+}
+.aa-hero__left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.aa-hero__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.aa-hero__title {
+  font-size: clamp(28px, 3.1vw, 40px);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.032em;
+  margin: 0;
+}
+.aa-hero__zh {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--text-body);
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+.aa-hero__lead {
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 68ch;
+}
+.aa-hero__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-hairline);
+}
+.aa-stat-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.aa-stat-pill__lbl {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.aa-stat-pill__num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+.aa-ledger {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+.aa-ledger__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-hairline);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.aa-ledger__item:last-child { border-bottom: 0; }
+.aa-ledger__item:hover { background: var(--bg-subtle); text-decoration: none; }
+.aa-ledger__kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.aa-ledger__title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.38;
+}
+.aa-ledger__arrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-xs);
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.aa-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+.aa-pill-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  padding: 4px;
+  border-radius: 999px;
+}
+.aa-pill {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-body);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.aa-pill:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  text-decoration: none;
+}
+.aa-pill.active {
+  background: var(--text-primary);
+  color: var(--bg-surface);
+}
+.aa-triptych {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+.aa-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.aa-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aa-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.aa-sq {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.aa-sq--cobalt { background: var(--accent); }
+.aa-sq--amber { background: var(--status-sim-fg); }
+.aa-sq--emerald { background: var(--status-ver-fg); }
+.aa-sq--crimson { background: var(--status-err-fg); }
+.aa-card__sub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.aa-card__prov {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.aa-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border-hairline);
+  border-bottom: 1px solid var(--border-hairline);
+}
+.aa-bar-row {
+  display: grid;
+  grid-template-columns: 122px minmax(0, 1fr) 54px;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+}
+.aa-bar-lbl {
+  color: var(--text-body);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aa-bar-track {
+  height: 9px;
+  background: var(--bg-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.aa-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+.aa-bar-val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+}
+.aa-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.aa-pareto-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border-hairline);
+  font-size: var(--fs-xs);
+  color: var(--text-body);
+  background: var(--bg-surface);
+}
+.aa-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Embroidered Running Hippo Patch (Kbar / recent.design homage) */
+.emb-card {
+  background: #F2EFE6;
+  border: 1px solid #D8D1C1;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(20, 32, 51, 0.10), 0 1px 3px rgba(20, 32, 51, 0.06), inset 0 0 32px rgba(160, 146, 120, 0.18);
+  padding: 10px;
+  max-width: 336px;
+  width: 100%;
+  justify-self: end;
+  position: relative;
+  overflow: hidden;
+}
+.emb-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+.emb-frame { opacity: 0; }
+.emb-f1 { animation: embStep1 0.56s steps(1, end) infinite; opacity: 1; }
+.emb-f2 { animation: embStep2 0.56s steps(1, end) infinite; }
+.emb-f3 { animation: embStep3 0.56s steps(1, end) infinite; }
+.emb-f4 { animation: embStep4 0.56s steps(1, end) infinite; }
+@keyframes embStep1 { 0%, 24.9% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes embStep2 { 0%, 24.9% { opacity: 0; } 25%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes embStep3 { 0%, 49.9% { opacity: 0; } 50%, 74.9% { opacity: 1; } 75%, 100% { opacity: 0; } }
+@keyframes embStep4 { 0%, 74.9% { opacity: 0; } 75%, 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .emb-f1 { animation: none !important; opacity: 1 !important; }
+  .emb-f2, .emb-f3, .emb-f4 { animation: none !important; opacity: 0 !important; }
+}
+/* Observatory Command Deck (Home Hero) */
+.obs-deck {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+  margin-bottom: var(--sp-4);
+  overflow: hidden;
+}
+.obs-deck__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  border-bottom: 1px solid var(--border-hairline);
+}
+.obs-hero-main {
+  padding: var(--sp-4) var(--sp-5);
+  border-right: 1px solid var(--border-hairline);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.obs-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.obs-eyebrow__tag {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.obs-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border-hairline);
+  border-bottom: 1px solid var(--border-hairline);
+}
+.obs-stat__label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+.obs-stat__val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.obs-stat__val--accent { color: var(--accent); }
+.obs-stat__sub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.obs-spectrum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.obs-spectrum__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.obs-spectrum__bars {
+  display: grid;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
+  height: 44px;
+  padding: 6px 8px 4px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-xs);
+  position: relative;
+}
+.spec-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 2px;
+  min-width: 0;
+}
+.spec-bar {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 1.5px 1.5px 0 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.spec-bar--warn {
+  background: var(--status-err-fg);
+}
+.spec-col:hover .spec-bar { opacity: 0.78; }
+.obs-hero-side {
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-3);
 }
 .kpi-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.kpi-grid-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
 }
 .kpi-card {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  padding: 18px 20px;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 .kpi-label {
   color: var(--text-muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: var(--sp-1);
 }
 .kpi-val {
-  color: var(--accent-blue);
-  font-size: 30px;
-  font-weight: 800;
-  font-family: var(--font-sans);
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
   line-height: 1.2;
-}
-@supports ((background-clip: text) or (-webkit-background-clip: text)) {
-  .kpi-val {
-    background: var(--accent-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
 }
 .kpi-foot {
   color: var(--text-muted);
-  font-size: 12px;
-  margin-top: 4px;
+  font-size: var(--fs-xs);
+  margin-top: var(--sp-1);
+  line-height: 1.35;
 }
+/* Panels & Tables */
 .panel {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  margin-bottom: 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--sp-4);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-panel);
 }
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  background: #F8FAFE;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-hairline);
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--sp-2);
 }
 .panel-title {
   color: var(--text-primary);
   font-weight: 700;
-  font-size: 16px;
+  font-size: var(--fs-h2);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
+}
+.panel-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
 }
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.seg-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
   flex-wrap: wrap;
 }
 .tab-pill {
-  padding: 6px 14px;
-  border-radius: var(--radius-pill);
-  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-muted);
-  background: #FFFFFF;
-  border: 1px solid var(--border-subtle);
-  transition: background 0.15s ease, color 0.15s ease;
+  background: transparent;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.tab-pill.active, .tab-pill:hover {
+.tab-pill:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+  text-decoration: none;
+}
+.tab-pill.active {
   color: #FFFFFF;
-  border-color: transparent;
-  background: var(--accent-gradient);
+  background: var(--accent);
+  border-color: var(--accent);
   text-decoration: none;
 }
 .data-table-wrap {
@@ -519,167 +1149,282 @@ table.data-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  font-variant-numeric: tabular-nums;
 }
 table.data-table th {
-  background: #F8FAFE;
+  background: var(--bg-subtle);
   color: var(--text-muted);
   font-weight: 600;
-  font-size: 12px;
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fs-sm);
+  padding: var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border-strong);
   white-space: nowrap;
 }
 table.data-table th a {
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
-table.data-table th a.sorted, table.data-table th a:hover {
-  color: var(--accent-blue);
+table.data-table th a.sorted {
+  color: var(--accent);
+  font-weight: 700;
+}
+table.data-table th a:hover {
+  color: var(--accent);
   text-decoration: none;
 }
 table.data-table td {
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border-hairline);
   color: var(--text-body);
-  font-size: 13px;
+  font-size: var(--fs-table);
   white-space: nowrap;
+  vertical-align: middle;
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
-table.data-table tr:hover td {
-  background: #F1F5FE;
+table.data-table tbody tr:hover td {
+  background-color: var(--accent-soft);
 }
 table.data-table td.num, table.data-table th.num {
   text-align: right;
   font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum" 1, "zero" 1;
 }
 .csl-bar-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
 }
 .csl-bar-bg {
-  width: 48px;
-  height: 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill);
+  width: 44px;
+  height: 7px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
   overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+.csl-bar-bg::after {
+  content: "";
+  position: absolute;
+  left: 54%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-strong);
 }
 .csl-bar-fill {
   height: 100%;
-  background: var(--accent-gradient);
+  background: var(--accent);
+}
+.csl-bar-fill--warn {
+  background: var(--status-err-fg);
+}
+.delta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.delta-track {
+  width: 24px;
+  height: 5px;
+  background: var(--bg-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border-hairline);
+}
+.delta-fill {
+  height: 100%;
+  background: var(--accent);
+}
+.delta-fill--high { background: var(--status-err-fg); }
+.harness-key {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-xs);
 }
 /* Provider / plan cell: full name wraps to two lines, no ellipsis (all screens). */
-table.data-table td.provider-cell { white-space: normal; max-width: 190px; }
+table.data-table td.provider-cell { white-space: normal; max-width: 192px; }
 table.data-table td.provider-cell .plan-name {
-  white-space: normal; word-break: break-word; line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.32;
 }
 @media (min-width: 721px) {
-  /* Desktop table density (v1.5.6): fit both home tables in the 1380px shell
-     without horizontal scroll; mobile (<=720px) untouched. */
+  /* Desktop table density (v1.5.6 contract): fit both home tables in the 1380px shell
+     without horizontal scroll; mobile (<=720px) uses scrollable wrapper. */
   table.data-table th { padding: 8px 5px; font-size: 11px; }
-  table.data-table td { padding: 8px 5px; font-size: 12px; }
-  table.data-table td.tput-cell { line-height: 1.35; }
+  table.data-table td { padding: 7px 5px; font-size: 12px; }
+  table.data-table td.tput-cell { line-height: 1.3; }
   table.data-table td.tput-cell .tput-sub {
-    font-size: 11px; color: var(--text-muted);
+    font-size: 10.5px; color: var(--text-muted);
   }
-  .csl-bar-bg { width: 40px; }
-  .csl-bar-wrap { gap: 6px; }
+  .csl-bar-bg { width: 38px; }
+  .csl-bar-wrap { gap: 5px; }
 }
 .tag-chip {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--accent-blue);
-  background: var(--accent-dim);
-  border: 1px solid rgba(46, 107, 255, 0.30);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
   white-space: nowrap;
 }
 .tag-simulated {
-  color: #92400E;
-  background: #FEF3C7;
-  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: var(--status-sim-fg);
+  background: var(--status-sim-bg);
+  border: 1px solid var(--status-sim-bd);
 }
 .tag-verified {
-  color: #166534;
-  background: #DCFCE7;
-  border: 1px solid rgba(34, 197, 94, 0.45);
+  color: var(--status-ver-fg);
+  background: var(--status-ver-bg);
+  border: 1px solid var(--status-ver-bd);
+}
+/* Probe Telemetry Bench */
+.probe-bench {
+  background: var(--bg-surface);
+}
+.probe-bench__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-5);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-hairline);
+  flex-wrap: wrap;
+  gap: var(--sp-2);
 }
 .probe-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
-  padding: 18px;
+  grid-template-columns: 2fr 1.15fr 1.15fr 1.25fr auto;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
   align-items: end;
 }
 .field-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--sp-1);
+  min-width: 0;
 }
 .field-label {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.step-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  padding: 0 4px;
+  border-radius: 2px;
 }
 .field-input, .field-select {
-  background: #FFFFFF;
-  border: 1px solid #CBD5E1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
   color: var(--text-primary);
-  padding: 9px 12px;
-  border-radius: 10px;
-  font-size: 13px;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-table);
   font-family: var(--font-mono);
+  width: 100%;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .field-input:focus, .field-select:focus {
   outline: none;
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(46, 107, 255, 0.15);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+.turnstile-slot {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .btn-submit {
-  background: var(--accent-gradient);
+  background: var(--accent);
   color: #FFFFFF;
-  border: 0;
-  padding: 10px 18px;
-  border-radius: var(--radius-pill);
-  font-weight: 700;
-  font-size: 13px;
+  border: 1px solid var(--accent);
+  height: 36px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--fs-table);
   cursor: pointer;
   font-family: var(--font-sans);
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .btn-submit:hover {
-  opacity: 0.92;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .notice-bar {
-  padding: 10px 18px;
-  background: #F8FAFE;
-  border-top: 1px solid var(--border-subtle);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border-hairline);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   display: flex;
   justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--sp-2);
+}
+.notice-bar img {
+  max-width: 100%;
+  height: auto;
 }
 .grid-2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--sp-4);
+}
+.citation-grid {
+  padding: var(--sp-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: var(--sp-4);
 }
 .code-box {
-  background: #F1F5F9;
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 10px 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-body);
   overflow-x: auto;
   white-space: pre-wrap;
@@ -688,53 +1433,137 @@ table.data-table td.provider-cell .plan-name {
 }
 .dist-row {
   display: grid;
-  grid-template-columns: 48px 1fr 110px;
+  grid-template-columns: 52px minmax(0, 1fr) 136px;
   align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(226, 232, 242, 0.7);
+  gap: var(--sp-2);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-hairline);
 }
 .dual-bar-track {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  background: var(--bg-subtle);
+  padding: 3px 4px;
+  border-radius: var(--radius-xs);
 }
 .bar-obs {
-  height: 7px;
-  background: var(--accent-gradient);
-  border-radius: 2px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 1.5px;
+  min-width: 2px;
 }
 .bar-ref {
-  height: 7px;
-  background: #CBD5E1;
-  border-radius: 2px;
+  height: 6px;
+  background: var(--border-strong);
+  border-radius: 1.5px;
+  min-width: 2px;
+}
+/* Timeline summary & heatmap grid */
+.tl-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+}
+.tl-summary-cell {
+  padding: var(--sp-3) var(--sp-4);
+  border-right: 1px solid var(--border-hairline);
+}
+.tl-summary-cell:last-child { border-right: 0; }
+.heat-grid-24 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 6px;
+}
+.heat-grid-30 {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 6px;
+}
+.heat-cell {
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-xs);
+  padding: 6px 4px;
+  text-align: center;
+  background: var(--bg-subtle);
+}
+.heat-cell--peak {
+  border-color: var(--accent-border);
+}
+/* Report Forensic Header */
+.forensic-deck {
+  display: grid;
+  grid-template-columns: 1.15fr 1.35fr 1.1fr;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--sp-4);
+  overflow: hidden;
+  box-shadow: var(--shadow-panel);
+}
+.forensic-col {
+  padding: var(--sp-4) var(--sp-5);
+  border-right: 1px solid var(--border-hairline);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.forensic-col:last-child { border-right: 0; background: var(--bg-subtle); }
+.telemetry-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-hairline);
 }
 .footer {
-  margin-top: 28px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-hairline);
   display: flex;
   justify-content: space-between;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--sp-2);
+}
+@media (max-width: 980px) {
+  .aa-hero { grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
+  .aa-triptych { grid-template-columns: minmax(0, 1fr); }
+  .obs-deck__top { grid-template-columns: minmax(0, 1fr); }
+  .obs-hero-main { border-right: 0; border-bottom: 1px solid var(--border-hairline); }
+  .probe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .forensic-deck { grid-template-columns: minmax(0, 1fr); }
+  .forensic-col { border-right: 0; border-bottom: 1px solid var(--border-hairline); }
+  .tl-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .heat-grid-24 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .heat-grid-30 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .citation-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
-  .shell { padding: 0 12px 32px; }
-  .topbar { flex-wrap: wrap; padding: 14px 0; margin-bottom: 16px; }
-  .brand-wrap { flex-wrap: wrap; }
-  .nav-links { flex-wrap: wrap; }
-  .kpi-strip { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .kpi-val { font-size: 24px; }
-  .probe-grid { grid-template-columns: repeat(2, 1fr); padding: 14px; }
+  .calib-strip__inner { padding: var(--sp-2) var(--sp-3); flex-direction: column; align-items: flex-start; gap: 4px; }
+  .shell { padding: 0 var(--sp-3) var(--sp-8); }
+  .topbar { padding: var(--sp-3) 0; margin-bottom: var(--sp-3); }
+  .aa-hero { padding: var(--sp-1) 0 var(--sp-3); }
+  .aa-hero__stats { gap: var(--sp-3); }
+  .aa-bar-row { grid-template-columns: 108px minmax(0, 1fr) 48px; }
+  .obs-hero-main, .obs-hero-side { padding: var(--sp-3); }
+  .obs-metrics-row { grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
+  .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+  .probe-grid { grid-template-columns: minmax(0, 1fr); padding: var(--sp-3); }
+  .probe-bench__head { padding: var(--sp-2) var(--sp-3); }
   .grid-2 { grid-template-columns: minmax(0, 1fr); }
-  .panel-head { padding: 12px 14px; }
+  .panel-head { padding: var(--sp-3); }
+  .heat-grid-24 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .heat-grid-30 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .dist-row { grid-template-columns: 44px minmax(0, 1fr) 114px; }
 }
 @media (max-width: 480px) {
-  .kpi-strip { grid-template-columns: minmax(0, 1fr); }
-  .probe-grid { grid-template-columns: minmax(0, 1fr); }
-  .nav-btn { padding: 6px 10px; font-size: 12px; }
+  .kpi-strip, .kpi-grid-2x2, .tl-summary-strip { grid-template-columns: minmax(0, 1fr); }
+  .nav-links, .aa-pill-group { width: 100%; justify-content: flex-start; border-radius: var(--radius-md); }
+  .nav-btn, .aa-pill { padding: 5px 8px; font-size: var(--fs-xs); }
 }
 """
 
@@ -743,16 +1572,17 @@ def render_header(active_nav: str = "table") -> str:
     return f"""
     <header class="topbar">
       <div class="brand-wrap">
-        <a href="/" class="brand-badge" style="text-decoration:none;">⚡ CSL-Meter</a>
+        <a href="/" class="brand-badge">{BRAND_MARK_SVG}<span>CSL-Meter</span></a>
         <div>
-          <div class="brand-title">个人大模型套餐与按量接口 CSL 指数公共观测台</div>
-          <div class="brand-sub">Consistency, Substitution &amp; Latency Meter · 零凭证落盘 · 众包峰谷时序基准 (<span class="mono">konspace.cc</span>)</div>
+          <div class="brand-title">CSL-Meter · 独立模型一致性观测台</div>
+          <div class="brand-sub">Consistency, Substitution &amp; Latency (<span class="mono">konspace.cc</span>)</div>
         </div>
       </div>
-      <nav class="nav-links">
+      <nav class="nav-links" aria-label="主导航">
         <a href="/" class="nav-btn {'active' if active_nav == 'table' else ''}">套餐与 Provider 总表</a>
         <a href="/timeline" class="nav-btn {'active' if active_nav == 'timeline' else ''}">24h 峰谷与 30d 趋势</a>
-        <a href="/r/a49d2e" class="nav-btn {'active' if active_nav == 'report' else ''}">实测快照样例 (#a49d2e)</a>
+        <a href="/r/a49d2e" class="nav-btn {'active' if active_nav == 'report' else ''}">实测快照 (#a49d2e)</a>
+        <a href="/#probe-panel" class="nav-btn">在线探针台</a>
         <a href="/api/v1/plans" class="nav-btn mono">JSON API</a>
       </nav>
     </header>
@@ -767,9 +1597,215 @@ def render_home_page(query_params: dict) -> str:
     only_verified = origin_filter == "verified"
 
     plans = db.list_plans(category=cat, sort_by=sort_by, order=order, only_verified=only_verified)
+    all_plans = db.list_plans()
     recent_reports = db.list_recent_reports(limit=6, only_verified=only_verified)
     verified_total = db.count_verified_reports()
     site_key = os.environ.get("TURNSTILE_SITE_KEY", "").strip()
+
+    # Observatory hero aggregate telemetry across all registered targets
+    sorted_by_csl = sorted(all_plans, key=lambda x: x["csl_index_7d"])
+    if sorted_by_csl:
+        mid_idx = len(sorted_by_csl) // 2
+        median_csl = sorted_by_csl[mid_idx]["csl_index_7d"]
+        best_plan = sorted_by_csl[0]
+        worst_plan = sorted_by_csl[-1]
+    else:
+        median_csl = 0.0
+        best_plan = {"provider_name": "-", "plan_name": "-", "csl_index_7d": 0.0}
+        worst_plan = {"provider_name": "-", "plan_name": "-", "csl_index_7d": 0.0}
+
+    # Artificial Analysis style 3-Column Triptych Benchmark Bars
+    def _short_label(p_item: dict) -> str:
+        prov = p_item["provider_name"].split(" (")[0].split("（")[0]
+        return f"{prov} · {p_item['claimed_model']}"
+
+    triptych_csl_picks = (
+        sorted_by_csl[:4] + sorted_by_csl[-3:]
+        if len(sorted_by_csl) >= 7
+        else sorted_by_csl
+    )
+    csl_bars_html = []
+    for sp in triptych_csl_picks:
+        v = sp["csl_index_7d"]
+        w = min(100, max(12, int((v / 20.0) * 100)))
+        col = "var(--status-err-fg)" if v >= 15.0 else "var(--accent)"
+        csl_bars_html.append(
+            f'<div class="aa-bar-row" title="{html.escape(sp["provider_name"])} — {html.escape(sp["plan_name"])}">'
+            f'<span class="aa-bar-lbl">{html.escape(_short_label(sp))}</span>'
+            f'<div class="aa-bar-track"><div class="aa-bar-fill" style="width:{w}%;background:{col};"></div></div>'
+            f'<span class="aa-bar-val" style="color:{col if v >= 15.0 else "var(--text-primary)"};">{v:.1f}</span>'
+            "</div>"
+        )
+
+    sorted_by_drift = sorted(all_plans, key=lambda x: x["peak_delta_csl"])
+    triptych_drift_picks = (
+        sorted_by_drift[:4] + sorted_by_drift[-3:]
+        if len(sorted_by_drift) >= 7
+        else sorted_by_drift
+    )
+    drift_bars_html = []
+    for sp in triptych_drift_picks:
+        dv = sp["peak_delta_csl"]
+        w = min(100, max(10, int((dv / 8.0) * 100)))
+        col = "var(--status-err-fg)" if dv >= 5.0 else "var(--status-sim-fg)"
+        drift_bars_html.append(
+            f'<div class="aa-bar-row" title="{html.escape(sp["provider_name"])} — {html.escape(sp["plan_name"])}">'
+            f'<span class="aa-bar-lbl">{html.escape(_short_label(sp))}</span>'
+            f'<div class="aa-bar-track"><div class="aa-bar-fill" style="width:{w}%;background:{col};"></div></div>'
+            f'<span class="aa-bar-val">+{dv:.1f}</span>'
+            "</div>"
+        )
+
+    sorted_by_tps = sorted(all_plans, key=lambda x: x["median_tps"], reverse=True)
+    triptych_tps_picks = sorted_by_tps[:7]
+    tps_bars_html = []
+    for sp in triptych_tps_picks:
+        tv = sp["median_tps"]
+        w = min(100, max(15, int((tv / 100.0) * 100)))
+        tps_bars_html.append(
+            f'<div class="aa-bar-row" title="{html.escape(sp["provider_name"])} — {html.escape(sp["plan_name"])} (TTFT {sp["ttft_ms"]}ms)">'
+            f'<span class="aa-bar-lbl">{html.escape(_short_label(sp))}</span>'
+            f'<div class="aa-bar-track"><div class="aa-bar-fill" style="width:{w}%;background:var(--status-ver-fg);"></div></div>'
+            f'<span class="aa-bar-val">{tv:.0f}T</span>'
+            "</div>"
+        )
+
+    # Artificial Analysis style 2D Pareto Frontier Quadrant SVG (X: TPS 38..102, Y: CSL 6.5..20.0 inverted)
+    # Plot box: x in [64, 1076], y in [22, 232]
+    def _px(tps_v: float) -> float:
+        return round(64.0 + ((max(38.0, min(102.0, tps_v)) - 38.0) / 64.0) * 1012.0, 1)
+
+    def _py(csl_v: float) -> float:
+        return round(22.0 + ((max(6.5, min(20.0, csl_v)) - 6.5) / 13.5) * 210.0, 1)
+
+    # Compute Pareto-optimal frontier (maximize TPS, minimize CSL)
+    pareto_pts = []
+    best_csl_so_far = 999.0
+    for sp in sorted(all_plans, key=lambda x: (-x["median_tps"], x["csl_index_7d"])):
+        if sp["csl_index_7d"] < best_csl_so_far:
+            pareto_pts.append((_px(sp["median_tps"]), _py(sp["csl_index_7d"])))
+            best_csl_so_far = sp["csl_index_7d"]
+    pareto_poly = " ".join(f"{x},{y}" for x, y in pareto_pts)
+
+    scatter_nodes = []
+    # Explicit per-slug label offsets (dx, dy, text-anchor) to guarantee 0 collisions across all 15 plans
+    _label_pos = {
+        "minimax": (-8, -7, "end"),
+        "xai": (0, 15, "middle"),
+        "volcengine": (0, 15, "middle"),
+        "openai": (0, 15, "middle"),
+        "cursor": (0, -9, "middle"),
+        "github-copilot": (9, 4, "start"),
+        "commandcode": (9, 3, "start"),
+        "aliyun": (-9, 2, "end"),
+        "opencode": (-9, 11, "end"),
+        "kilocode": (-9, -5, "end"),
+        "kiro": (0, 15, "middle"),
+        "kimi": (0, -8, "middle"),
+        "anthropic": (0, -8, "middle"),
+        "xiaomi": (-8, 4, "end"),
+        "zai": (9, 4, "start"),
+    }
+    for sp in sorted_by_tps:
+        cx = _px(sp["median_tps"])
+        cy = _py(sp["csl_index_7d"])
+        c_val = sp["csl_index_7d"]
+        dot_col = "var(--status-err-fg)" if c_val >= 15.0 else ("var(--status-ver-fg)" if (c_val <= 13.0 and sp["median_tps"] >= 65) else "var(--accent)")
+        short_prov = sp["provider_name"].split(" (")[0].split("（")[0]
+        chosen_dx, chosen_dy, anchor = _label_pos.get(sp["provider_slug"], (0, -8, "middle"))
+        scatter_nodes.append(
+            f'<g><circle cx="{cx}" cy="{cy}" r="4.5" style="fill:{dot_col};stroke:var(--bg-surface);stroke-width:1.5px;"/>'
+            f'<text x="{round(cx + chosen_dx, 1)}" y="{round(cy + chosen_dy, 1)}" text-anchor="{anchor}" style="fill:var(--text-body);" font-size="10.5" font-family="var(--font-mono)" font-weight="600">{html.escape(short_prov)} ({c_val:.1f})</text></g>'
+        )
+
+    qx = _px(65.0)
+    qy_bottom = _py(13.2)
+    y_warn15 = _py(15.0)
+
+    # Embroidered Running Hippo Loop (homage to Kbar's Embroidered Loop on recent.design)
+    # Anatomical hippo silhouette: chubby barrel rump, shoulder hump, perked small ears,
+    # raised eye orbit, huge bulbous hippo snout with nostril dome & open tusked jaw,
+    # deep rounded belly, and 4 muscular galloping legs across 4 Muybridge phases.
+    _h_torso = (
+        "M78,98 C80,76 106,66 138,70 C158,72 174,67 192,74 "
+        "C197,76 201,79 204,77 C203,68 211,66 214,75 C217,69 224,69 225,77 "
+        "C231,72 239,73 243,80 C257,76 277,80 283,93 C287,102 281,111 271,112 "
+        "L252,109 L254,104 L249,108 L266,116 L263,112 L270,118 "
+        "C272,126 260,132 245,129 C232,126 222,120 212,123 "
+        "C184,142 128,143 96,124 C83,117 77,108 78,98 Z"
+    )
+    _h_poses = [
+        # Frame 1: Full extended gallop stride (legs stretched far out front & back)
+        _h_torso
+        + " M79,96 C66,99 54,103 46,98 C52,107 65,106 79,103 Z"
+        + " M206,120 C222,126 244,134 268,142 C273,144 271,151 263,149 C240,142 216,134 192,126 Z"
+        + " M186,125 C184,138 182,149 185,159 L173,159 C170,147 171,135 173,124 Z"
+        + " M114,122 C98,134 84,145 72,155 L62,149 C74,137 88,125 100,115 Z"
+        + " M96,114 C74,121 54,126 38,128 L35,120 C52,116 72,111 90,103 Z",
+        # Frame 2: Cross-over gather stride (front & hind legs sweeping inward)
+        _h_torso
+        + " M79,97 C66,102 55,108 49,106 C55,113 67,109 79,103 Z"
+        + " M204,120 C212,133 216,145 212,157 L200,155 C203,143 198,132 188,124 Z"
+        + " M184,124 C172,136 160,147 148,155 L140,148 C152,139 162,129 170,121 Z"
+        + " M114,122 C124,134 134,145 144,154 L134,159 C122,148 110,136 100,118 Z"
+        + " M98,116 C88,130 80,142 74,152 L64,147 C70,135 78,122 88,108 Z",
+        # Frame 3: Airborne gathered suspension (legs tucked tightly under barrel belly)
+        _h_torso
+        + " M80,95 C67,105 57,114 51,119 C60,119 70,110 79,102 Z"
+        + " M204,118 C216,126 218,136 202,147 L194,140 C205,133 203,126 188,122 Z"
+        + " M182,122 C170,137 158,149 146,157 L137,150 C149,141 160,130 168,120 Z"
+        + " M116,120 C132,131 148,140 160,146 L153,153 C138,146 120,136 102,118 Z"
+        + " M100,115 C112,130 124,142 132,151 L122,155 C112,144 98,131 88,110 Z",
+        # Frame 4: Uncoiling mid-extension reach
+        _h_torso
+        + " M79,96 C65,97 53,98 46,92 C52,102 65,102 79,102 Z"
+        + " M206,120 C224,128 242,138 256,147 L248,154 C234,144 214,134 190,124 Z"
+        + " M186,124 C192,137 198,148 202,158 L190,159 C186,147 180,136 172,123 Z"
+        + " M112,122 C102,136 94,148 86,158 L76,154 C84,142 92,129 98,116 Z"
+        + " M96,114 C78,124 62,132 48,137 L43,129 C58,123 74,114 88,104 Z",
+    ]
+    _romans = ["I.", "II.", "III.", "IV."]
+    _ground_shifts = [0, -14, -28, -7]
+    emb_frames_svg = []
+    for f_idx in range(4):
+        top_p = _h_poses[f_idx]
+        bot_p = _h_poses[(f_idx + 2) % 4]
+        gx = _ground_shifts[f_idx]
+        emb_frames_svg.append(
+            f'<g class="emb-frame emb-f{f_idx + 1}">'
+            f'<text x="26" y="42" fill="#2B1E1A" font-family="Georgia,serif" font-size="14" font-weight="700" letter-spacing="0.04em">{_romans[f_idx]}</text>'
+            f'<g transform="translate(8,-18)"><path d="{top_p}" fill="#2B1E1A"/>'
+            f'<path d="M104,96 L248,96 M96,109 L228,109 M120,118 L196,118" stroke="#F2EFE6" stroke-width="0.9" stroke-opacity="0.52"/>'
+            f'<path d="M{124+gx},158 L{158+gx},158 M{174+gx},158 L{192+gx},158 M{208+gx},158 L{222+gx},158" stroke="#2B1E1A" stroke-width="2.6" stroke-linecap="round"/></g>'
+            f'<g transform="translate(8,162)"><path d="{bot_p}" fill="#2B1E1A"/>'
+            f'<path d="M108,98 L242,98 M98,111 L220,111" stroke="#F2EFE6" stroke-width="0.9" stroke-opacity="0.52"/></g>'
+            "</g>"
+        )
+    embroidered_hippo_html = (
+        '<div class="emb-card" role="img" aria-label="CSL-Meter 亚麻刺绣奔跑河马徽章动画 (CLAIMS ARE NOT REAL · LET CSL MEASURE YOU)">'
+        '<svg class="emb-svg" viewBox="0 0 320 356" xmlns="http://www.w3.org/2000/svg">'
+        "<defs>"
+        '<pattern id="linenWeave" width="4" height="4" patternUnits="userSpaceOnUse">'
+        '<rect width="4" height="4" fill="#F2EFE6"/>'
+        '<rect x="0" y="0" width="2" height="1" fill="#E4DECFE0"/>'
+        '<rect x="2" y="2" width="2" height="1" fill="#E4DECFE0"/>'
+        '<rect x="0" y="1" width="1" height="2" fill="#FAF8F1"/>'
+        '<rect x="2" y="3" width="1" height="1" fill="#D9D2C280"/>'
+        "</pattern>"
+        '<filter id="embStitch" x="-6%" y="-6%" width="112%" height="112%">'
+        '<feTurbulence type="fractalNoise" baseFrequency="0.18 0.52" numOctaves="3" seed="5" result="n"/>'
+        '<feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="d"/>'
+        '<feDropShadow dx="0" dy="0.7" stdDeviation="0.55" flood-color="#5A463C" flood-opacity="0.42"/>'
+        "</filter>"
+        "</defs>"
+        '<rect width="320" height="356" rx="6" fill="url(#linenWeave)"/>'
+        '<g filter="url(#embStitch)">'
+        + "".join(emb_frames_svg)
+        + '<text x="160" y="182" text-anchor="middle" fill="#2B1E1A" font-family="Georgia,\'Times New Roman\',serif" font-weight="900" font-size="20.5" letter-spacing="-0.02em" transform="scale(0.94,1.08) translate(10,-13)">CLAIMS ARE NOT REAL</text>'
+        '<text x="160" y="206" text-anchor="middle" fill="#2B1E1A" font-family="Georgia,\'Times New Roman\',serif" font-weight="900" font-size="20.5" letter-spacing="-0.02em" transform="scale(0.94,1.08) translate(10,-14)">LET CSL MEASURE YOU</text>'
+        '<text x="160" y="220" text-anchor="middle" fill="#4A3730" font-family="var(--font-mono)" font-weight="700" font-size="8.5" letter-spacing="0.14em">CSL-METER · KONSPACE.CC · JSD FINGERPRINT</text>'
+        "</g></svg></div>"
+    )
 
     def sort_link(col_key: str, label: str, is_num: bool = True, title: str = "") -> str:
         next_ord = "asc" if (sort_by == col_key and order == "desc") else "desc"
@@ -778,57 +1814,61 @@ def render_home_page(query_params: dict) -> str:
         if sort_by == col_key:
             arrow = " ↓" if order == "desc" else " ↑"
             cls = "sorted"
-        th_cls = 'class="num"' if is_num else ""
+        th_cls = ' scope="col" class="num"' if is_num else ' scope="col"'
         title_attr = f' title="{html.escape(title)}"' if title else ""
-        return f'<th {th_cls}><a class="{cls}"{title_attr} href="/?category={html.escape(cat)}&amp;origin={html.escape(origin_filter)}&amp;sort={col_key}&amp;order={next_ord}">{label}{arrow}</a></th>'
+        return f'<th{th_cls}><a class="{cls}"{title_attr} href="/?category={html.escape(cat)}&amp;origin={html.escape(origin_filter)}&amp;sort={col_key}&amp;order={next_ord}">{label}{arrow}</a></th>'
 
     rows_html = []
     if not plans:
         rows_html.append(
-            '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--text-muted);">当前筛选条件下暂无真实已验真（Server-Verified）记录。请在上方探测台输入真实 API Key 发起首次实测，或切换至「含演示基线」视图。</td></tr>'
+            '<tr><td colspan="12" style="text-align:center;padding:28px 16px;color:var(--text-muted);">'
+            '<div style="font-weight:600;color:var(--text-primary);margin-bottom:4px;">当前筛选条件下暂无真实已验真（Server-Verified）记录</div>'
+            '<div>请在上方「真实上游 API 探针台」输入有效 API Key 发起首次实测，或 <a href="/?category='
+            + html.escape(cat)
+            + '&amp;origin=all">切换至「含演示基线」视图</a>。</div>'
+            "</td></tr>"
         )
     for p in plans:
         p_slug = html.escape(p["provider_slug"])
         pl_slug = html.escape(p["plan_slug"])
         csl = p["csl_index_7d"]
-        bar_w = min(100, max(6, int(csl * 1.8)))
+        bar_w = min(100, max(8, int((csl / 28.0) * 100)))
+        bar_cls = "csl-bar-fill csl-bar-fill--warn" if csl >= 15.0 else "csl-bar-fill"
+        csl_val_color = "var(--status-err-fg)" if csl >= 15.0 else "var(--text-primary)"
         is_sim = p.get("data_origin") != "Server-Verified"
         origin_tag = "Simulated" if is_sim else f"Verified({p.get('verified_sample_count', 1)})"
         origin_chip_cls = "tag-chip tag-simulated" if is_sim else "tag-chip tag-verified"
+        delta_v = p["peak_delta_csl"]
+        delta_w = min(100, max(10, int((delta_v / 9.0) * 100)))
+        delta_cls = "delta-fill delta-fill--high" if delta_v >= 5.0 else "delta-fill"
 
         rows_html.append(
-            f"""
-            <tr>
-              <td class="provider-cell" title="{html.escape(p['provider_name'])} — {html.escape(p['plan_name'])}">
-                <div style="font-weight:600;color:var(--text-primary);white-space:nowrap;">{html.escape(p['provider_name'])}</div>
-                <div class="plan-name" style="color:var(--text-muted);font-size:11px;">{html.escape(p['plan_name'])}</div>
-              </td>
-              <td><span class="{origin_chip_cls}">{origin_tag}</span></td>
-              <td class="mono">{html.escape(p['claimed_model'])} <span style="color:var(--text-muted);">[{html.escape(p['harness_type'])}]</span></td>
-              <td class="num">{p['sample_count_7d']}</td>
-              <td class="num">
-                <div class="csl-bar-wrap">
-                  <div class="csl-bar-bg"><div class="csl-bar-fill" style="width:{bar_w}%;"></div></div>
-                  <span style="color:var(--text-primary);font-weight:700;">{csl:.1f}</span>
-                  <span style="color:var(--text-muted);font-size:11px;">±{p['csl_iqr']:.1f}</span>
-                </div>
-              </td>
-              <td class="num" title="±{p['jsd_std']:.3f}">{p['net_jsd']:.3f}</td>
-              <td class="num">{p['split_jsd']:.3f} <span style="color:var(--text-muted);">({p['tail_ratio']:.0f}%)</span></td>
-              <td class="mono">{html.escape(p['nearest_profile'])}</td>
-              <td class="num">+{p['peak_delta_csl']:.1f}</td>
-              <td class="num">{p['token_ratio']:.2f}x <span style="color:var(--text-muted);">({p['cache_hit_pct']:.0f}%)</span></td>
-              <td class="num tput-cell"><div>{p['median_tps']:.0f}T</div><div class="tput-sub">{p['ttft_ms']}ms · {p['rate_429_pct']:.1f}%</div></td>
-              <td class="num">
-                <a href="/timeline?p1={p_slug}/{pl_slug}" class="mono" style="font-size:11px;">峰谷</a> ·
-                <a href="/badge/plan/{p_slug}/{pl_slug}.svg" class="mono" style="font-size:11px;" target="_blank">徽章</a>
-              </td>
-            </tr>
-            """
+            f'<tr>'
+            f'<td class="provider-cell" title="{html.escape(p["provider_name"])} — {html.escape(p["plan_name"])}">'
+            f'<div style="font-weight:600;color:var(--text-primary);white-space:nowrap;">{html.escape(p["provider_name"])}</div>'
+            f'<div class="plan-name" style="color:var(--text-muted);font-size:11px;">{html.escape(p["plan_name"])}</div></td>'
+            f'<td><span class="{origin_chip_cls}">{origin_tag}</span></td>'
+            f'<td class="mono">{html.escape(p["claimed_model"])} <span class="harness-key">[{html.escape(p["harness_type"])}]</span></td>'
+            f'<td class="num">{p["sample_count_7d"]}</td>'
+            f'<td class="num"><div class="csl-bar-wrap">'
+            f'<div class="csl-bar-bg" title="CSL 指数 {csl:.1f} (竖线为 15.0 警戒刻度)"><div class="{bar_cls}" style="width:{bar_w}%;"></div></div>'
+            f'<span style="color:{csl_val_color};font-weight:700;">{csl:.1f}</span>'
+            f'<span style="color:var(--text-muted);font-size:11px;">±{p["csl_iqr"]:.1f}</span></div></td>'
+            f'<td class="num" title="±{p["jsd_std"]:.3f}">{p["net_jsd"]:.3f}</td>'
+            f'<td class="num">{p["split_jsd"]:.3f} <span style="color:var(--text-muted);">({p["tail_ratio"]:.0f}%)</span></td>'
+            f'<td class="mono">{html.escape(p["nearest_profile"])}</td>'
+            f'<td class="num"><div class="delta-pill" title="14:00-18:00 峰谷漂移 +{delta_v:.1f}">'
+            f'<div class="delta-track"><div class="{delta_cls}" style="width:{delta_w}%;"></div></div>'
+            f'<span>+{delta_v:.1f}</span></div></td>'
+            f'<td class="num">{p["token_ratio"]:.2f}x <span style="color:var(--text-muted);">({p["cache_hit_pct"]:.0f}%)</span></td>'
+            f'<td class="num tput-cell"><div>{p["median_tps"]:.0f}T</div><div class="tput-sub">{p["ttft_ms"]}ms · {p["rate_429_pct"]:.1f}%</div></td>'
+            f'<td class="num"><a href="/timeline?p1={p_slug}/{pl_slug}" class="mono" style="font-size:11px;">峰谷</a> · '
+            f'<a href="/badge/plan/{p_slug}/{pl_slug}.svg" class="mono" style="font-size:11px;" target="_blank" rel="noopener">徽章</a></td>'
+            f'</tr>'
         )
 
     plan_options_html = []
-    for p in db.list_plans():
+    for p in all_plans:
         val = f"{p['provider_slug']}|{p['plan_slug']}|{p['claimed_model']}|{p['harness_type']}"
         label = f"{p['provider_name']} — {p['plan_name']} [{p['claimed_model']}]"
         plan_options_html.append(f'<option value="{html.escape(val)}">{html.escape(label)}</option>')
@@ -836,23 +1876,23 @@ def render_home_page(query_params: dict) -> str:
     recent_rows_html = []
     for r in recent_reports:
         rid = html.escape(r["uuid"])
-        vmode = "Server-Verified" if r.get("data_origin") == "Server-Verified" else "Simulated · 模拟生成"
+        is_ver = r.get("data_origin") == "Server-Verified"
+        vmode = "Server-Verified" if is_ver else "Simulated · 模拟生成"
+        vchip_cls = "tag-chip tag-verified" if is_ver else "tag-chip tag-simulated"
         recent_rows_html.append(
-            f"""
-            <tr>
-              <td class="mono"><a href="/r/{rid}">#{rid}</a></td>
-              <td class="mono" style="color:var(--text-muted);">{html.escape(r['created_at'])}</td>
-              <td class="provider-cell" title="{html.escape(r['provider_name'])} · {html.escape(r['plan_name'])}">{html.escape(r['provider_name'])} · {html.escape(r['plan_name'])}</td>
-              <td class="mono">{html.escape(r['claimed_model'])}</td>
-              <td class="mono" style="color:var(--text-muted);">{html.escape(vmode)}</td>
-              <td class="num" style="color:var(--text-primary);font-weight:700;">{r['csl_index']:.1f}</td>
-              <td class="num">{r['net_jsd']:.3f}</td>
-              <td class="num">{r['split_jsd']:.3f}</td>
-              <td class="mono">{html.escape(r['nearest_profile'])}</td>
-              <td class="num">{r['tps']:.1f} TPS</td>
-              <td class="num"><a href="/r/{rid}" class="mono">查看快照 →</a></td>
-            </tr>
-            """
+            f'<tr>'
+            f'<td class="mono"><a href="/r/{rid}" style="font-weight:600;">#{rid}</a></td>'
+            f'<td class="mono" style="color:var(--text-muted);">{html.escape(r["created_at"])}</td>'
+            f'<td class="provider-cell" title="{html.escape(r["provider_name"])} · {html.escape(r["plan_name"])}">{html.escape(r["provider_name"])} · {html.escape(r["plan_name"])}</td>'
+            f'<td class="mono">{html.escape(r["claimed_model"])}</td>'
+            f'<td><span class="{vchip_cls}">{html.escape(vmode)}</span></td>'
+            f'<td class="num" style="color:var(--text-primary);font-weight:700;">{r["csl_index"]:.1f}</td>'
+            f'<td class="num">{r["net_jsd"]:.3f}</td>'
+            f'<td class="num">{r["split_jsd"]:.3f}</td>'
+            f'<td class="mono">{html.escape(r["nearest_profile"])}</td>'
+            f'<td class="num">{r["tps"]:.1f} TPS</td>'
+            f'<td class="num"><a href="/r/{rid}" class="mono">查看快照 →</a></td>'
+            f'</tr>'
         )
 
     turnstile_head_script = (
@@ -863,7 +1903,7 @@ def render_home_page(query_params: dict) -> str:
     turnstile_widget_html = (
         f'<div class="cf-turnstile" data-sitekey="{html.escape(site_key)}" data-theme="light"></div>'
         if site_key
-        else '<div class="mono" style="font-size:11px;color:var(--text-muted);padding:6px 8px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-canvas);">Turnstile 控件就绪 (待注入 TURNSTILE_SITE_KEY)</div>'
+        else '<div class="turnstile-slot mono">Turnstile 控件就绪 (待注入 TURNSTILE_SITE_KEY)</div>'
     )
 
     return f"""<!DOCTYPE html>
@@ -889,87 +1929,225 @@ def render_home_page(query_params: dict) -> str:
   <div class="shell">
     {render_header("table")}
 
-    <section class="kpi-strip">
-      <div class="kpi-card">
-        <div class="kpi-label">已收录个人套餐与按量靶标</div>
-        <div class="kpi-val">{len(INITIAL_PLANS)} 个靶标</div>
-        <div class="kpi-foot">仅限个人 Coding Plan / Token Plan / Pay-as-you-go（排除企业版）</div>
+    <section class="aa-hero" aria-label="独立观测宣言与防伪契约">
+      <div class="aa-hero__left">
+        <div class="aa-hero__kicker">INDEPENDENT TELEMETRY ANALYSIS OF AI PLANS · KONSPACE.CC</div>
+        <h1 class="aa-hero__title">Independent analysis of AI subscription &amp; API plans</h1>
+        <div class="aa-hero__zh">个人大模型套餐与按量接口 CSL 指数独立公共观测台</div>
+        <div class="aa-hero__lead">
+          通过 16 次真实上游 API 探针采样数字分布指纹，客观测量各家套餐「宣称模型与实际响应分布的 JS 散度（CSL 指数）、14:00–18:00 算力高峰漂移与实测吞吐」。只发布可复核读数，零凭证落盘。
+        </div>
+        <div class="aa-hero__stats">
+          <div class="aa-stat-pill">
+            <span class="aa-stat-pill__lbl">全站 7d 中位 CSL</span>
+            <span class="aa-stat-pill__num" style="color:var(--accent);">{median_csl:.1f}</span>
+          </div>
+          <div class="aa-stat-pill">
+            <span class="aa-stat-pill__lbl">最佳基线贴合 (Low Drift)</span>
+            <span class="aa-stat-pill__num">{best_plan['csl_index_7d']:.1f} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">({html.escape(best_plan['provider_name'])})</span></span>
+          </div>
+          <div class="aa-stat-pill">
+            <span class="aa-stat-pill__lbl">最高峰谷偏离 (High Drift)</span>
+            <span class="aa-stat-pill__num" style="color:var(--status-err-fg);">{worst_plan['csl_index_7d']:.1f} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">({html.escape(worst_plan['provider_name'])})</span></span>
+          </div>
+          <div class="aa-stat-pill">
+            <span class="aa-stat-pill__lbl">真实 API 验真样本</span>
+            <span class="aa-stat-pill__num">{verified_total} 条 <span style="font-size:12px;font-weight:500;color:var(--text-muted);">/ {len(INITIAL_PLANS)} 靶标</span></span>
+          </div>
+        </div>
+        <div class="aa-ledger" style="margin-top:8px;" aria-label="观测规程与动态日志">
+          <a href="/timeline" class="aa-ledger__item">
+            <div>
+              <div class="aa-ledger__kicker">BENCHMARK · 24H PEAK &amp; 30D DRIFT</div>
+              <div class="aa-ledger__title">24 小时算力高峰切片（14:00–18:00 UTC+8）与 30 日版本漂移双序列对账</div>
+            </div>
+            <span class="aa-ledger__arrow">↗</span>
+          </a>
+          <a href="#probe-panel" class="aa-ledger__item">
+            <div>
+              <div class="aa-ledger__kicker">METHODOLOGY · 16-PROBE JSD FINGERPRINT · {'VERIFIED-LIVE' if verified_total >= len(INITIAL_PLANS) else 'DEMO-SIMULATED'}</div>
+              <div class="aa-ledger__title">单轮 16 次真实请求（硬顶 30K Tokens）· 严格隔离演示基线与真实探测 · 凭证内存即焚 (0 落盘)</div>
+            </div>
+            <span class="aa-ledger__arrow">↓</span>
+          </a>
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">真实上游 API 验真样本数</div>
-        <div class="kpi-val">{verified_total} 条</div>
-        <div class="kpi-foot">真实出站调用 · 假 Key 或断网直接拒绝入库 (绝不合成伪造报告)</div>
+
+      {embroidered_hippo_html}
+    </section>
+
+    <div class="aa-toolbar" role="region" aria-label="维度与分类胶囊切换栏">
+      <div class="aa-pill-group" role="group" aria-label="套餐分类胶囊">
+        <a href="/?category=all&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="aa-pill {'active' if cat == 'all' else ''}">全部靶标 ({len(INITIAL_PLANS)})</a>
+        <a href="/?category=cn_plan&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="aa-pill {'active' if cat == 'cn_plan' else ''}">国内个人套餐</a>
+        <a href="/?category=global_coding&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="aa-pill {'active' if cat == 'global_coding' else ''}">海外 Coding 订阅</a>
+        <a href="/?category=global_oa&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="aa-pill {'active' if cat == 'global_oa' else ''}">海外 OA+Grok</a>
+        <a href="/?category=payg&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="aa-pill {'active' if cat == 'payg' else ''}">官方按量基线</a>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">单次真探针并发与预算</div>
-        <div class="kpi-val">≤4 路 / 硬顶 30K T</div>
-        <div class="kpi-foot">14 次分布采样（256 T/发，推理感知提取）+ 2 次分词/缓存对账（单轮硬顶 30,000 Tokens）</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="mono" style="font-size:11px;color:var(--text-muted);">Data Scope:</span>
+        <div class="aa-pill-group" role="group" aria-label="数据来源切换">
+          <a href="/?category={html.escape(cat)}&amp;origin=all&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="aa-pill {'active' if not only_verified else ''}">含演示基线 (All)</a>
+          <a href="/?category={html.escape(cat)}&amp;origin=verified&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="aa-pill {'active' if only_verified else ''}">仅看真实探测 ({verified_total})</a>
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">凭证落盘残留检出数</div>
-        <div class="kpi-val">0 条</div>
-        <div class="kpi-foot">官方 API 域名严格白名单防 SSRF · 内存用完即焚</div>
+    </div>
+
+    <section class="aa-triptych" aria-label="三联核心观测维度横评卡">
+      <div class="aa-card">
+        <div class="aa-card__head">
+          <div class="aa-card__title"><span class="aa-sq aa-sq--cobalt"></span><span>CSL Fidelity Index · 保真度</span></div>
+          <div class="aa-card__sub">7日 CSL 综合指数 · 越低越贴近官方满血基线 (Lower is better, &lt;15.0)</div>
+          <div class="aa-card__prov">⛁ 标注 Simulated 为模拟基线 · 红色 ≥15.0 提示分布偏离</div>
+        </div>
+        <div class="aa-bars">
+          {''.join(csl_bars_html)}
+        </div>
+        <div class="aa-card__foot">
+          <span>Range: {best_plan['csl_index_7d']:.1f} – {worst_plan['csl_index_7d']:.1f}</span>
+          <span>↗ CSL-Meter</span>
+        </div>
+      </div>
+
+      <div class="aa-card">
+        <div class="aa-card__head">
+          <div class="aa-card__title"><span class="aa-sq aa-sq--amber"></span><span>Peak Drift · 算力高峰漂移</span></div>
+          <div class="aa-card__sub">14:00–18:00 算力高峰相比平峰 ΔCSL · 越低越稳 (Lower is better)</div>
+          <div class="aa-card__prov">⛁ 覆盖午后算力拥塞窗口 · ≥+5.0 提示显著高峰偏移</div>
+        </div>
+        <div class="aa-bars">
+          {''.join(drift_bars_html)}
+        </div>
+        <div class="aa-card__foot">
+          <span>24h Peak Window (UTC+8)</span>
+          <span>↗ CSL-Meter</span>
+        </div>
+      </div>
+
+      <div class="aa-card">
+        <div class="aa-card__head">
+          <div class="aa-card__title"><span class="aa-sq aa-sq--emerald"></span><span>Throughput · 实测中位吞吐</span></div>
+          <div class="aa-card__sub">中位输出速度 (Tokens/s) 与首字延迟 · 越高越快 (Higher is better)</div>
+          <div class="aa-card__prov">⛁ 同步记录 TTFT 首字延迟 (ms) 与 429 限流率</div>
+        </div>
+        <div class="aa-bars">
+          {''.join(tps_bars_html)}
+        </div>
+        <div class="aa-card__foot">
+          <span>Unit: Tokens / sec (TPS)</span>
+          <span>↗ CSL-Meter</span>
+        </div>
       </div>
     </section>
 
-    <section class="panel" id="probe-panel">
+    <section class="panel" aria-label="CSL 保真度与实测吞吐帕累托最优象限图">
       <div class="panel-head">
         <div class="panel-title">
-          <span>⚡ 发起真实上游 API 探测（真实出站请求 · 零凭证留存 · 拒绝假 Key 合成）</span>
+          <span class="panel-eyebrow">PARETO FRONTIER</span>
+          <span>CSL Fidelity Index vs. Median Throughput (TPS) · 保真度与吞吐帕累托象限分析</span>
         </div>
-        <div class="mono" style="font-size:11px;color:var(--text-muted);">
-          温和并发 4 路 · 16 次真实请求 (~1,100 Tokens) · Cloudflare Turnstile 服务端校验
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);border:1px solid var(--border-hairline);padding:3px 10px;border-radius:999px;">{len(all_plans)} of {len(all_plans)} plans</span>
+          <a href="/timeline" class="btn-action">切换 24h 峰谷与 30d 趋势 →</a>
         </div>
       </div>
-      <form id="probe-form" onsubmit="return submitProbe(event);">
-        <div class="probe-grid">
-          <div class="field-group" style="grid-column: span 2;">
-            <label class="field-label">1. 选择白名单个人套餐 / 官方按量基线（禁止自定义 URL 防 SSRF）</label>
-            <select id="plan-selector" class="field-select" required>
-              {''.join(plan_options_html)}
-            </select>
-          </div>
-          <div class="field-group">
-            <label class="field-label">2. 当前 5h 额度窗口水位标签</label>
-            <select id="quota-stage" class="field-select">
-              <option value="window_early (&lt;30%)">窗口初期 (&lt;30% 用量)</option>
-              <option value="window_late (&gt;70%)">窗口中后期 (&gt;70% 用量)</option>
-              <option value="fallback_triggered">触发降速 / 额度回退后</option>
-            </select>
-          </div>
-          <div class="field-group">
-            <label class="field-label">3. 临时测试凭证 (真实调用官方端点)</label>
-            <input id="api-key-input" type="password" class="field-input" placeholder="sk-... (内存即焚)" required minlength="6" autocomplete="off"/>
-          </div>
-          <div class="field-group">
-            <label class="field-label">4. 人机验证 (Cloudflare Turnstile)</label>
-            {turnstile_widget_html}
-          </div>
-          <div class="field-group">
-            <button type="submit" id="submit-btn" class="btn-submit">发起真实探测 →</button>
-          </div>
-        </div>
-      </form>
-      <div class="notice-bar">
-        <span>验真边界：服务端使用该凭证向对应官方白名单 API 发起 16 次真实请求（耗时约 4–10 秒）；若 Key 无效或上游返回 401/403，直接报错且不生成任何报告。</span>
-        <span id="probe-status" class="mono" style="color:var(--accent-bright);">等待提交真实测试凭证...</span>
+      <div class="aa-pareto-legend">
+        <span class="aa-legend-item"><span style="width:12px;height:12px;background:var(--status-ver-bg);border:1px solid var(--status-ver-bd);border-radius:2px;display:inline-block;"></span><strong>Most attractive quadrant</strong>（高保真 CSL ≤ 13.0 · 高吞吐 TPS ≥ 65）</span>
+        <span class="aa-legend-item"><span class="mono" style="color:var(--status-ver-fg);font-weight:700;">····</span><strong>Pareto line</strong>（帕累托最优前沿）</span>
+        <span class="aa-legend-item"><span style="width:8px;height:8px;border-radius:99px;background:var(--accent);display:inline-block;"></span>常规观测区 (CSL &lt; 15.0)</span>
+        <span class="aa-legend-item"><span style="width:8px;height:8px;border-radius:99px;background:var(--status-err-fg);display:inline-block;"></span>高偏离警戒区 (CSL ≥ 15.0)</span>
+        <span class="mono" style="margin-left:auto;font-size:11px;color:var(--text-muted);">⛁ 纵轴越靠上越贴近官方满血基线 · 横轴越靠右吞吐越快</span>
+      </div>
+      <div style="padding:12px 16px 10px;background:var(--bg-surface);">
+        <svg viewBox="0 0 1120 264" style="width:100%;height:auto;display:block;" role="img" aria-label="CSL 指数与实测吞吐帕累托散点图">
+          <rect x="64" y="22" width="1012" height="210" style="fill:var(--bg-subtle);" rx="4"/>
+          <rect x="{qx}" y="22" width="{round(1076.0 - qx, 1)}" height="{round(qy_bottom - 22.0, 1)}" style="fill:var(--status-ver-bg);stroke:var(--status-ver-bd);" stroke-dasharray="4 3" rx="3"/>
+          <text x="{round(qx + 10, 1)}" y="38" style="fill:var(--status-ver-fg);" font-size="10.5" font-family="var(--font-mono)" font-weight="700">MOST ATTRACTIVE QUADRANT · 低漂移高吞吐最优象限 (CSL ≤ 13.0, TPS ≥ 65)</text>
+          <line x1="64" y1="{_py(9.0)}" x2="1076" y2="{_py(9.0)}" style="stroke:var(--border-hairline);" stroke-dasharray="3 3"/>
+          <line x1="64" y1="{_py(12.0)}" x2="1076" y2="{_py(12.0)}" style="stroke:var(--border-hairline);" stroke-dasharray="3 3"/>
+          <line x1="64" y1="{y_warn15}" x2="1076" y2="{y_warn15}" style="stroke:var(--status-err-bd);" stroke-dasharray="5 4" stroke-width="1.2"/>
+          <text x="72" y="{round(y_warn15 - 5, 1)}" style="fill:var(--status-err-fg);" font-size="10" font-family="var(--font-mono)">CSL = 15.0 显著偏离警戒线 (下方为高漂移区)</text>
+          <line x1="64" y1="{_py(18.0)}" x2="1076" y2="{_py(18.0)}" style="stroke:var(--border-hairline);" stroke-dasharray="3 3"/>
+          <text x="56" y="{round(_py(9.0) + 4, 1)}" text-anchor="end" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)">9.0</text>
+          <text x="56" y="{round(_py(12.0) + 4, 1)}" text-anchor="end" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)">12.0</text>
+          <text x="56" y="{round(y_warn15 + 4, 1)}" text-anchor="end" style="fill:var(--status-err-fg);" font-size="10.5" font-family="var(--font-mono)" font-weight="700">15.0</text>
+          <text x="56" y="{round(_py(18.0) + 4, 1)}" text-anchor="end" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)">18.0</text>
+          <text x="{_px(45)}" y="250" text-anchor="middle" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)">45 TPS</text>
+          <text x="{_px(60)}" y="250" text-anchor="middle" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)">60 TPS</text>
+          <text x="{_px(75)}" y="250" text-anchor="middle" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)">75 TPS</text>
+          <text x="{_px(90)}" y="250" text-anchor="middle" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)">90 TPS</text>
+          <polyline fill="none" style="stroke:var(--status-ver-fg);" stroke-width="1.8" stroke-dasharray="5 4" points="{pareto_poly}"/>
+          {''.join(scatter_nodes)}
+          <text x="1068" y="224" text-anchor="end" style="fill:var(--text-muted);" font-size="10.5" font-family="var(--font-mono)" font-weight="600">↗ Artificial Analysis Style Telemetry · CSL-Meter (konspace.cc)</text>
+        </svg>
       </div>
     </section>
 
-    <section class="panel">
+    <section class="obs-deck" aria-label="在线真实上游 API 探针台">
+      <div class="probe-bench" id="probe-panel">
+        <div class="probe-bench__head">
+          <div class="panel-title">
+            <span class="panel-eyebrow">LIVE PROBE</span>
+            <span>发起真实上游 API 探测（真实出站请求 · 零凭证留存 · 拒绝假 Key 合成）</span>
+          </div>
+          <div class="mono" style="font-size:11px;color:var(--text-muted);">
+            温和并发 4 路 · 16 次真实请求 (~1,100 Tokens，硬顶 30,000 Tokens) · 有效数字提取 &lt;8 拒出报告
+          </div>
+        </div>
+        <form id="probe-form" onsubmit="return submitProbe(event);">
+          <div class="probe-grid">
+            <div class="field-group">
+              <label class="field-label" for="plan-selector"><span class="step-num">01</span>选择白名单个人套餐 / 官方按量基线（禁止自定义 URL 防 SSRF）</label>
+              <select id="plan-selector" class="field-select" required>
+                {''.join(plan_options_html)}
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="quota-stage"><span class="step-num">02</span>当前 5h 额度窗口水位标签</label>
+              <select id="quota-stage" class="field-select">
+                <option value="window_early (&lt;30%)">窗口初期 (&lt;30% 用量)</option>
+                <option value="window_late (&gt;70%)">窗口中后期 (&gt;70% 用量)</option>
+                <option value="fallback_triggered">触发降速 / 额度回退后</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="api-key-input"><span class="step-num">03</span>临时测试凭证 (内存用完即焚)</label>
+              <input id="api-key-input" type="password" class="field-input" placeholder="sk-... (永不落盘)" required minlength="6" autocomplete="off"/>
+            </div>
+            <div class="field-group">
+              <span class="field-label"><span class="step-num">04</span>人机验证 (Cloudflare Turnstile)</span>
+              {turnstile_widget_html}
+            </div>
+            <div class="field-group">
+              <button type="submit" id="submit-btn" class="btn-submit">发起真实探测 →</button>
+            </div>
+          </div>
+        </form>
+        <div class="notice-bar">
+          <span>验真边界：服务端使用该凭证向对应官方白名单 API 发起 16 次真实请求（耗时约 4–10 秒）；凭证仅驻留内存、用完即焚；若 Key 无效或上游返回 401/403，直接报错且不生成任何报告。</span>
+          <span id="probe-status" class="mono" style="color:var(--accent);font-weight:600;" role="status" aria-live="polite">等待提交真实测试凭证...</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="全局个人套餐与 Provider 客观统计总表">
       <div class="panel-head">
         <div class="panel-title">
+          <span class="panel-eyebrow">MATRIX</span>
           <span>全局个人套餐与 Provider 客观统计总表（平铺直叙 · 按数据说话）</span>
         </div>
         <div class="filter-bar">
-          <a href="/?category={html.escape(cat)}&amp;origin=all&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if not only_verified else ''}">含演示基线</a>
-          <a href="/?category={html.escape(cat)}&amp;origin=verified&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if only_verified else ''}">仅看真实探测 ({verified_total})</a>
-          <span style="color:var(--border-subtle);">|</span>
-          <a href="/?category=all&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'all' else ''}">全部</a>
-          <a href="/?category=cn_plan&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'cn_plan' else ''}">国内个人套餐</a>
-          <a href="/?category=global_coding&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'global_coding' else ''}">海外 Coding 订阅</a>
-          <a href="/?category=global_oa&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'global_oa' else ''}">海外 OA+Grok</a>
-          <a href="/?category=payg&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'payg' else ''}">官方按量基线</a>
+          <div class="seg-group" role="group" aria-label="数据来源筛选">
+            <a href="/?category={html.escape(cat)}&amp;origin=all&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if not only_verified else ''}">含演示基线</a>
+            <a href="/?category={html.escape(cat)}&amp;origin=verified&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if only_verified else ''}">仅看真实探测 ({verified_total})</a>
+          </div>
+          <div class="seg-group" role="group" aria-label="套餐类别筛选">
+            <a href="/?category=all&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'all' else ''}">全部</a>
+            <a href="/?category=cn_plan&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'cn_plan' else ''}">国内个人套餐</a>
+            <a href="/?category=global_coding&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'global_coding' else ''}">海外 Coding 订阅</a>
+            <a href="/?category=global_oa&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'global_oa' else ''}">海外 OA+Grok</a>
+            <a href="/?category=payg&amp;origin={html.escape(origin_filter)}&amp;sort={html.escape(sort_by)}&amp;order={html.escape(order)}" class="tab-pill {'active' if cat == 'payg' else ''}">官方按量基线</a>
+          </div>
         </div>
       </div>
       <div class="data-table-wrap">
@@ -977,17 +2155,17 @@ def render_home_page(query_params: dict) -> str:
           <thead>
             <tr>
               {sort_link('provider_name', 'Provider / 个人套餐', False)}
-              <th>数据状态</th>
-              <th>宣称模型 [壳]</th>
+              <th scope="col">数据状态</th>
+              <th scope="col">宣称模型 [壳]</th>
               {sort_link('sample_count_7d', '样本 N')}
               {sort_link('csl_index_7d', 'CSL 指数')}
               {sort_link('net_jsd', 'Net-JSD')}
               {sort_link('split_jsd', 'Split-JSD')}
-              <th>最接近基线 (Top-1)</th>
+              <th scope="col">最接近基线 (Top-1)</th>
               {sort_link('peak_delta_csl', '峰谷 Δ')}
               {sort_link('token_ratio', '计费/缓存')}
               {sort_link('median_tps', '吞吐', title='吞吐 / TTFT / 429率')}
-              <th class="num">引用</th>
+              <th scope="col" class="num">引用</th>
             </tr>
           </thead>
           <tbody>
@@ -996,31 +2174,34 @@ def render_home_page(query_params: dict) -> str:
         </table>
       </div>
       <div class="notice-bar">
-        <span>说明：标注 Simulated 的行为初始演示基线（不与真实探测混算）；一旦某套餐收到真实探测完成入库，该行自动切换为 Verified 并仅聚合真实测量值。</span>
-        <span class="mono">实时 SVG 徽章示例：<img src="/badge/plan/volcengine/coding-plan-lite.svg" alt="CSL-Meter Badge" style="vertical-align:middle;height:20px;"/></span>
+        <span>口径说明：读数仅客观呈现采样分布与宣称基线的统计距离（JSD），不下主观定性结论；标注 Simulated 的初始演示基线绝不与真实探测混算。</span>
+        <span class="mono" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">实时 SVG 徽章：<img src="/badge/plan/volcengine/coding-plan-lite.svg" alt="CSL-Meter Badge" style="vertical-align:middle;height:20px;"/></span>
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" aria-label="入库快照流水">
       <div class="panel-head">
-        <div class="panel-title"><span>入库快照流水（明确区分 Server-Verified 与 Simulated · 模拟生成）</span></div>
-        <a href="/r/a49d2e" class="mono" style="font-size:11px;">查看快照样例 #a49d2e →</a>
+        <div class="panel-title">
+          <span class="panel-eyebrow">STREAM</span>
+          <span>入库快照流水（明确区分 Server-Verified 与 Simulated · 模拟生成）</span>
+        </div>
+        <a href="/r/a49d2e" class="btn-action">查看快照样例 #a49d2e →</a>
       </div>
       <div class="data-table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>快照 ID</th>
-              <th>采样时间 (UTC)</th>
-              <th>套餐名称</th>
-              <th>宣称模型</th>
-              <th>数据验真状态</th>
-              <th class="num">CSL 指数</th>
-              <th class="num">Net-JSD</th>
-              <th class="num">Split-JSD</th>
-              <th>最接近底座分布</th>
-              <th class="num">实测吞吐</th>
-              <th class="num">操作</th>
+              <th scope="col">快照 ID</th>
+              <th scope="col">采样时间 (UTC)</th>
+              <th scope="col">套餐名称</th>
+              <th scope="col">宣称模型</th>
+              <th scope="col">数据验真状态</th>
+              <th scope="col" class="num">CSL 指数</th>
+              <th scope="col" class="num">Net-JSD</th>
+              <th scope="col" class="num">Split-JSD</th>
+              <th scope="col">最接近底座分布</th>
+              <th scope="col" class="num">实测吞吐</th>
+              <th scope="col" class="num">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -1031,7 +2212,7 @@ def render_home_page(query_params: dict) -> str:
     </section>
 
     <footer class="footer">
-      <div>⚡ <strong>CSL-Meter</strong> (Consistency, Substitution &amp; Latency Meter) · 生产主站 <a href="https://konspace.cc">https://konspace.cc</a> · API <a href="https://api.konspace.cc">https://api.konspace.cc</a></div>
+      <div><strong>CSL-Meter</strong> (Consistency, Substitution &amp; Latency Meter) · 生产主站 <a href="https://konspace.cc">https://konspace.cc</a> · API <a href="https://api.konspace.cc">https://api.konspace.cc</a></div>
       <div class="mono">CC-BY-4.0 · 引用数据请保留 CSL-Meter 徽章或回跳链接</div>
     </footer>
   </div>
@@ -1051,6 +2232,7 @@ def render_home_page(query_params: dict) -> str:
     const apiKeyVal = keyInput.value;
     keyInput.value = '';
     btn.disabled = true;
+    statusEl.style.color = 'var(--accent)';
     statusEl.textContent = '正在向官方白名单端点发起 16 次真实 HTTP 探针请求，请稍候 (约 4–10 秒)...';
 
     try {{
@@ -1069,13 +2251,16 @@ def render_home_page(query_params: dict) -> str:
       }});
       const data = await resp.json();
       if (!resp.ok) {{
+        statusEl.style.color = 'var(--status-err-fg)';
         statusEl.textContent = '探测未通过: ' + (data.error || resp.statusText);
         btn.disabled = false;
         return false;
       }}
+      statusEl.style.color = 'var(--status-ver-fg)';
       statusEl.textContent = '真实探测完成！已生成快照 #' + data.report.uuid + '，正在跳转...';
       window.location.href = '/r/' + data.report.uuid;
     }} catch (err) {{
+      statusEl.style.color = 'var(--status-err-fg)';
       statusEl.textContent = '请求异常: ' + err;
       btn.disabled = false;
     }}
@@ -1117,29 +2302,58 @@ def render_timeline_page(query_params: dict) -> str:
             opts.append(f'<option value="{html.escape(val)}" {sel}>{html.escape(p["provider_name"])} — {html.escape(p["plan_name"])}</option>')
         return "".join(opts)
 
-    w, h = 920, 240
-    pad_l, pad_r, pad_t, pad_b = 46, 24, 24, 34
+    avg1 = sum(x["csl_index"] for x in series1) / max(1, len(series1))
+    avg2 = sum(x["csl_index"] for x in series2) / max(1, len(series2))
+    max1 = max((x["csl_index"] for x in series1), default=0.0)
+    if mode == "hourly_24h" and len(series1) >= 19:
+        peak_slice = series1[14:19]
+        peak_avg1 = sum(x["csl_index"] for x in peak_slice) / max(1, len(peak_slice))
+    else:
+        peak_avg1 = max1
+    net_diff_avg = avg1 - avg2
+
+    w, h = 960, 248
+    pad_l, pad_r, pad_t, pad_b = 48, 24, 24, 34
     plot_w = w - pad_l - pad_r
     plot_h = h - pad_t - pad_b
     n_pts = max(1, len(series1))
 
-    def pt_coords(series: list) -> str:
+    def pt_list(series: list) -> list:
         pts = []
         for idx, item in enumerate(series):
             x = pad_l + (idx / max(1, n_pts - 1)) * plot_w
             y = pad_t + plot_h - (min(40.0, max(0.0, item["csl_index"])) / 40.0) * plot_h
-            pts.append(f"{x:.1f},{y:.1f}")
-        return " ".join(pts)
+            pts.append((x, y, item))
+        return pts
 
-    poly1 = pt_coords(series1)
-    poly2 = pt_coords(series2)
+    pts1 = pt_list(series1)
+    pts2 = pt_list(series2)
+    poly1 = " ".join(f"{x:.1f},{y:.1f}" for x, y, _ in pts1)
+    poly2 = " ".join(f"{x:.1f},{y:.1f}" for x, y, _ in pts2)
+    area1 = (
+        f"{pts1[0][0]:.1f},{pad_t + plot_h:.1f} "
+        + poly1
+        + f" {pts1[-1][0]:.1f},{pad_t + plot_h:.1f}"
+        if pts1
+        else ""
+    )
+
+    dots1_svg = "".join(
+        f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" fill="var(--bg-surface)" stroke="var(--accent)" stroke-width="1.8">'
+        f'<title>{html.escape(it["bucket_label"])}: CSL {it["csl_index"]:.1f} · {it["tps"]:.0f} TPS</title></circle>'
+        for x, y, it in pts1
+    )
 
     peak_rect = ""
     if mode == "hourly_24h" and n_pts >= 24:
         x1 = pad_l + (14 / 23.0) * plot_w
         x2 = pad_l + (18 / 23.0) * plot_w
-        peak_rect = f'<rect x="{x1:.1f}" y="{pad_t}" width="{x2 - x1:.1f}" height="{plot_h}" fill="rgba(46, 107, 255, 0.10)" stroke="rgba(124, 58, 237, 0.35)" stroke-dasharray="3,3"/>'
-        peak_rect += f'<text x="{(x1+x2)/2:.1f}" y="{pad_t + 14}" fill="#2E6BFF" font-size="10" font-family="monospace" text-anchor="middle">14:00-18:00 算力高峰带</text>'
+        peak_rect = (
+            f'<rect x="{x1:.1f}" y="{pad_t}" width="{x2 - x1:.1f}" height="{plot_h}" '
+            'fill="var(--accent-soft)" stroke="var(--accent-border)" stroke-dasharray="3,3"/>'
+            f'<text x="{(x1+x2)/2:.1f}" y="{pad_t + 14}" fill="var(--accent)" font-size="10" '
+            'font-family="monospace" font-weight="600" text-anchor="middle">14:00–18:00 算力高峰带 (UTC+8)</text>'
+        )
 
     x_labels_svg = []
     step = 2 if mode == "hourly_24h" else 3
@@ -1147,19 +2361,22 @@ def render_timeline_page(query_params: dict) -> str:
         if idx % step == 0 or idx == n_pts - 1:
             x = pad_l + (idx / max(1, n_pts - 1)) * plot_w
             x_labels_svg.append(
-                f'<text x="{x:.1f}" y="{h - 10}" fill="#64748B" font-size="10" font-family="monospace" text-anchor="middle">{html.escape(item["bucket_label"])}</text>'
+                f'<text x="{x:.1f}" y="{h - 10}" fill="var(--text-muted)" font-size="10" font-family="monospace" text-anchor="middle">{html.escape(item["bucket_label"])}</text>'
             )
 
     heat_cells = []
-    for item in series1:
+    for idx, item in enumerate(series1):
         csl_v = item["csl_index"]
-        alpha = min(0.85, max(0.12, (csl_v - 6.0) / 24.0))
+        alpha = min(0.32, max(0.04, (csl_v - 6.0) / 55.0))
+        is_peak_hr = mode == "hourly_24h" and (14 <= idx <= 18)
+        cell_cls = "heat-cell heat-cell--peak" if is_peak_hr else "heat-cell"
+        val_color = "var(--status-err-fg)" if csl_v >= 15.0 else "var(--text-primary)"
         heat_cells.append(
             f"""
-            <div style="background:rgba(46, 107, 255, {alpha:.2f});border:1px solid var(--border-subtle);border-radius:4px;padding:6px 4px;text-align:center;">
+            <div class="{cell_cls}" style="background:rgba(15, 82, 186, {alpha:.2f});">
               <div class="mono" style="font-size:10px;color:var(--text-muted);">{html.escape(item['bucket_label'])}</div>
-              <div class="mono" style="font-size:12px;font-weight:700;color:var(--text-primary);margin-top:2px;">{csl_v:.1f}</div>
-              <div class="mono" style="font-size:10px;color:var(--text-body);">{item['tps']:.0f}T</div>
+              <div class="mono" style="font-size:12.5px;font-weight:700;color:{val_color};margin-top:2px;">{csl_v:.1f}</div>
+              <div class="mono" style="font-size:10px;color:var(--text-muted);">{item['tps']:.0f}T</div>
             </div>
             """
         )
@@ -1169,23 +2386,35 @@ def render_timeline_page(query_params: dict) -> str:
         s1 = series1[idx]
         s2 = series2[idx]
         diff = s1["csl_index"] - s2["csl_index"]
+        diff_w = min(100, max(8, int((abs(diff) / 12.0) * 100)))
+        diff_cls = "delta-fill delta-fill--high" if diff >= 6.0 else "delta-fill"
+        c1_color = "var(--status-err-fg)" if s1["csl_index"] >= 15.0 else "var(--accent)"
         table_rows.append(
             f"""
             <tr>
-              <td class="mono">{html.escape(s1['bucket_label'])}</td>
-              <td class="num" style="color:var(--accent-bright);font-weight:600;">{s1['csl_index']:.1f}</td>
+              <td class="mono" style="font-weight:600;">{html.escape(s1['bucket_label'])}</td>
+              <td class="num" style="color:{c1_color};font-weight:700;">{s1['csl_index']:.1f}</td>
               <td class="num">{s1['net_jsd']:.3f}</td>
-              <td class="num">{s1['tps']:.1f} TPS ({s1['rate_429_pct']:.1f}%)</td>
+              <td class="num">{s1['tps']:.1f} TPS <span style="color:var(--text-muted);">({s1['rate_429_pct']:.1f}%)</span></td>
               <td class="num" style="color:var(--text-primary);font-weight:600;">{s2['csl_index']:.1f}</td>
               <td class="num">{s2['net_jsd']:.3f}</td>
-              <td class="num">{s2['tps']:.1f} TPS ({s2['rate_429_pct']:.1f}%)</td>
-              <td class="num">{diff:+.1f}</td>
+              <td class="num">{s2['tps']:.1f} TPS <span style="color:var(--text-muted);">({s2['rate_429_pct']:.1f}%)</span></td>
+              <td class="num">
+                <div class="delta-pill">
+                  <div class="delta-track"><div class="{diff_cls}" style="width:{diff_w}%;"></div></div>
+                  <span style="font-weight:600;">{diff:+.1f}</span>
+                </div>
+              </td>
             </tr>
             """
         )
 
     p1_full = f"{meta1['provider_slug']}/{meta1['plan_slug']}"
     p2_full = f"{meta2['provider_slug']}/{meta2['plan_slug']}"
+    heat_grid_cls = "heat-grid-24" if mode == "hourly_24h" else "heat-grid-30"
+    is_sim_tl = meta1.get("data_origin") != "Server-Verified"
+    tl_origin_label = "Simulated · 模拟生成" if is_sim_tl else "Server-Verified"
+    tl_origin_cls = "tag-chip tag-simulated" if is_sim_tl else "tag-chip tag-verified"
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -1199,81 +2428,115 @@ def render_timeline_page(query_params: dict) -> str:
   <div class="shell">
     {render_header("timeline")}
 
-    <section class="panel">
+    <section class="panel" aria-label="跨时段 CSL 指数监控台">
       <div class="panel-head">
         <div class="panel-title">
+          <span class="panel-eyebrow">TIMELINE</span>
           <span>跨时段 CSL 指数监控台（24 小时算力峰谷热力带 &amp; 30 日版本漂移折线）</span>
         </div>
         <div class="filter-bar">
-          <a href="/timeline?p1={html.escape(p1_full)}&amp;p2={html.escape(p2_full)}&amp;mode=hourly_24h" class="tab-pill {'active' if mode == 'hourly_24h' else ''}">24 小时峰谷切片 (UTC+8)</a>
-          <a href="/timeline?p1={html.escape(p1_full)}&amp;p2={html.escape(p2_full)}&amp;mode=daily_30d" class="tab-pill {'active' if mode == 'daily_30d' else ''}">30 日历史漂移曲线</a>
+          <span class="{tl_origin_cls}">{tl_origin_label}</span>
+          <div class="seg-group" role="group" aria-label="时间跨度切换">
+            <a href="/timeline?p1={html.escape(p1_full)}&amp;p2={html.escape(p2_full)}&amp;mode=hourly_24h" class="tab-pill {'active' if mode == 'hourly_24h' else ''}">24 小时峰谷切片 (UTC+8)</a>
+            <a href="/timeline?p1={html.escape(p1_full)}&amp;p2={html.escape(p2_full)}&amp;mode=daily_30d" class="tab-pill {'active' if mode == 'daily_30d' else ''}">30 日历史漂移曲线</a>
+          </div>
         </div>
       </div>
 
-      <form method="GET" action="/timeline" style="padding:12px 14px;border-bottom:1px solid var(--border-subtle);display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+      <form method="GET" action="/timeline" style="padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--border-hairline);display:flex;gap:var(--sp-3);align-items:end;flex-wrap:wrap;background:var(--bg-surface);">
         <input type="hidden" name="mode" value="{html.escape(mode)}"/>
         <div class="field-group" style="flex:1;min-width:240px;">
-          <label class="field-label">主观测套餐 (电光蓝实线 + 热力格)</label>
-          <select name="p1" class="field-select">{build_options(meta1['provider_slug'], meta1['plan_slug'])}</select>
+          <label class="field-label" for="tl-p1"><span class="step-num">A</span>主观测套餐 (仪器钴蓝实线 + 下方切片热力矩阵)</label>
+          <select id="tl-p1" name="p1" class="field-select">{build_options(meta1['provider_slug'], meta1['plan_slug'])}</select>
         </div>
         <div class="field-group" style="flex:1;min-width:240px;">
-          <label class="field-label">对照基线套餐 (浅灰蓝虚线)</label>
-          <select name="p2" class="field-select">{build_options(meta2['provider_slug'], meta2['plan_slug'])}</select>
+          <label class="field-label" for="tl-p2"><span class="step-num">B</span>对照基线套餐 (冷岩灰虚线基准)</label>
+          <select id="tl-p2" name="p2" class="field-select">{build_options(meta2['provider_slug'], meta2['plan_slug'])}</select>
         </div>
         <button type="submit" class="btn-submit">切换对比曲线</button>
       </form>
 
-      <div style="padding:16px 14px;">
-        <div style="margin-bottom:8px;display:flex;justify-content:space-between;font-size:12px;">
-          <div>
-            <span style="color:var(--accent-bright);font-weight:700;">━ 主观测：{html.escape(meta1['provider_name'])} · {html.escape(meta1['plan_name'])}</span>
-            <span style="margin-left:18px;color:var(--text-muted);">┅ 对照：{html.escape(meta2['provider_name'])} · {html.escape(meta2['plan_name'])}</span>
+      <div class="tl-summary-strip">
+        <div class="tl-summary-cell">
+          <div class="kpi-label">主观测序列 (Series A) 均值</div>
+          <div class="kpi-val" style="color:var(--accent);">{avg1:.1f} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">CSL</span></div>
+          <div class="kpi-foot">{html.escape(meta1['provider_name'])} · {html.escape(meta1['plan_name'])}</div>
+        </div>
+        <div class="tl-summary-cell">
+          <div class="kpi-label">{'14:00–18:00 算力高峰均值' if mode == 'hourly_24h' else '30d 窗口峰值读数'}</div>
+          <div class="kpi-val" style="color:{'var(--status-err-fg)' if peak_avg1 >= 15.0 else 'var(--text-primary)'};">{peak_avg1:.1f} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">CSL</span></div>
+          <div class="kpi-foot">相对于平峰均值漂移 {peak_avg1 - avg1:+.1f}</div>
+        </div>
+        <div class="tl-summary-cell">
+          <div class="kpi-label">对照基线 (Series B) 均值</div>
+          <div class="kpi-val">{avg2:.1f} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">CSL</span></div>
+          <div class="kpi-foot">{html.escape(meta2['provider_name'])} · {html.escape(meta2['plan_name'])}</div>
+        </div>
+        <div class="tl-summary-cell">
+          <div class="kpi-label">双序列净间距 (Δ A − B)</div>
+          <div class="kpi-val">{net_diff_avg:+.1f} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">CSL</span></div>
+          <div class="kpi-foot">宣称模型: <span class="mono">{html.escape(meta1['claimed_model'])}</span> vs <span class="mono">{html.escape(meta2['claimed_model'])}</span></div>
+        </div>
+      </div>
+
+      <div style="padding:var(--sp-4);">
+        <div style="margin-bottom:var(--sp-2);display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-sm);flex-wrap:wrap;gap:var(--sp-2);">
+          <div style="display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;">
+            <span style="color:var(--accent);font-weight:700;">━●━ 主观测：{html.escape(meta1['provider_name'])} · {html.escape(meta1['plan_name'])}</span>
+            <span style="color:var(--text-muted);font-weight:600;">┅┅ 对照：{html.escape(meta2['provider_name'])} · {html.escape(meta2['plan_name'])}</span>
           </div>
-          <div class="mono" style="color:var(--text-muted);">纵轴: CSL 指数 (0–40) · 数值越低越贴近官方满血直连分布</div>
+          <div class="mono" style="color:var(--text-muted);font-size:var(--fs-xs);">纵轴: CSL 指数 (0–40) · 15.0 警戒基线 · 越低越贴近满血官方分布</div>
         </div>
 
-        <svg viewBox="0 0 {w} {h}" style="width:100%;height:auto;background:var(--bg-canvas);border:1px solid var(--border-subtle);border-radius:4px;">
-          <line x1="{pad_l}" y1="{pad_t}" x2="{w - pad_r}" y2="{pad_t}" stroke="#E2E8F2" stroke-width="1"/>
-          <line x1="{pad_l}" y1="{pad_t + plot_h*0.5:.1f}" x2="{w - pad_r}" y2="{pad_t + plot_h*0.5:.1f}" stroke="#E2E8F2" stroke-width="1" stroke-dasharray="2,2"/>
-          <line x1="{pad_l}" y1="{pad_t + plot_h - (15.0/40.0)*plot_h:.1f}" x2="{w - pad_r}" y2="{pad_t + plot_h - (15.0/40.0)*plot_h:.1f}" stroke="#0369A1" stroke-width="1" stroke-dasharray="4,4"/>
-          <text x="{pad_l - 6}" y="{pad_t + 4}" fill="#64748B" font-size="10" font-family="monospace" text-anchor="end">40.0</text>
-          <text x="{pad_l - 6}" y="{pad_t + plot_h*0.5 + 4:.1f}" fill="#64748B" font-size="10" font-family="monospace" text-anchor="end">20.0</text>
-          <text x="{pad_l - 6}" y="{pad_t + plot_h - (15.0/40.0)*plot_h + 3:.1f}" fill="#2E6BFF" font-size="10" font-family="monospace" text-anchor="end">15.0</text>
-          <text x="{pad_l - 6}" y="{pad_t + plot_h + 4}" fill="#64748B" font-size="10" font-family="monospace" text-anchor="end">0.0</text>
+        <svg viewBox="0 0 {w} {h}" role="img" aria-label="双套餐 CSL 指数跨时段对比折线图" style="width:100%;height:auto;background:var(--bg-canvas);border:1px solid var(--border-hairline);border-radius:var(--radius-sm);display:block;">
+          <line x1="{pad_l}" y1="{pad_t}" x2="{w - pad_r}" y2="{pad_t}" stroke="var(--chart-grid)" stroke-width="1"/>
+          <line x1="{pad_l}" y1="{pad_t + plot_h*0.5:.1f}" x2="{w - pad_r}" y2="{pad_t + plot_h*0.5:.1f}" stroke="var(--chart-grid)" stroke-width="1" stroke-dasharray="2,3"/>
+          <line x1="{pad_l}" y1="{pad_t + plot_h - (15.0/40.0)*plot_h:.1f}" x2="{w - pad_r}" y2="{pad_t + plot_h - (15.0/40.0)*plot_h:.1f}" stroke="var(--status-err-fg)" stroke-width="1" stroke-dasharray="4,4" stroke-opacity="0.55"/>
+          <line x1="{pad_l}" y1="{pad_t + plot_h}" x2="{w - pad_r}" y2="{pad_t + plot_h}" stroke="var(--border-strong)" stroke-width="1"/>
+          <text x="{pad_l - 8}" y="{pad_t + 4}" fill="var(--text-muted)" font-size="10" font-family="monospace" text-anchor="end">40.0</text>
+          <text x="{pad_l - 8}" y="{pad_t + plot_h*0.5 + 4:.1f}" fill="var(--text-muted)" font-size="10" font-family="monospace" text-anchor="end">20.0</text>
+          <text x="{pad_l - 8}" y="{pad_t + plot_h - (15.0/40.0)*plot_h + 3:.1f}" fill="var(--status-err-fg)" font-size="10" font-family="monospace" font-weight="600" text-anchor="end">15.0</text>
+          <text x="{pad_l - 8}" y="{pad_t + plot_h + 4}" fill="var(--text-muted)" font-size="10" font-family="monospace" text-anchor="end">0.0</text>
           {peak_rect}
-          <polyline fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="5,4" points="{poly2}"/>
-          <polyline fill="none" stroke="#2E6BFF" stroke-width="2.5" points="{poly1}"/>
+          <polygon points="{area1}" fill="var(--accent-soft)" opacity="0.65"/>
+          <polyline fill="none" stroke="var(--chart-ref)" stroke-width="1.8" stroke-dasharray="5,4" points="{poly2}"/>
+          <polyline fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="{poly1}"/>
+          {dots1_svg}
           {''.join(x_labels_svg)}
         </svg>
 
-        <div style="margin-top:14px;">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">
-            主观测套餐（{html.escape(meta1['plan_name'])}）切片热力矩阵（上行为时段/日期，中行为 CSL 指数，下行为实测 TPS）：
+        <div style="margin-top:var(--sp-4);">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:var(--sp-2);flex-wrap:wrap;gap:var(--sp-2);">
+            <span>主观测套餐（<strong>{html.escape(meta1['plan_name'])}</strong>）整除切片热力矩阵（上行：时段/日期 · 中行：CSL 指数 · 下行：实测中位 TPS）：</span>
+            <span class="mono">{'24 小时 = 12 列 × 2 行 (14:00–18:00 蓝框高亮)' if mode == 'hourly_24h' else '30 日 = 10 列 × 3 行'}</span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(68px, 1fr));gap:6px;">
+          <div class="{heat_grid_cls}">
             {''.join(heat_cells)}
           </div>
         </div>
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" aria-label="双套餐分时对账明细表">
       <div class="panel-head">
-        <div class="panel-title"><span>双套餐分时对账明细表</span></div>
+        <div class="panel-title">
+          <span class="panel-eyebrow">LEDGER</span>
+          <span>双套餐分时对账明细表</span>
+        </div>
         <span class="mono" style="font-size:11px;color:var(--text-muted);">API 端点: {API_DOMAIN}/v1/timeline?provider={html.escape(meta1['provider_slug'])}&amp;plan={html.escape(meta1['plan_slug'])}</span>
       </div>
       <div class="data-table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>时间切片</th>
-              <th class="num">{html.escape(meta1['plan_name'])} · CSL</th>
-              <th class="num">主观测 Net-JSD</th>
-              <th class="num">主观测 TPS (429率)</th>
-              <th class="num">{html.escape(meta2['plan_name'])} · CSL</th>
-              <th class="num">对照 Net-JSD</th>
-              <th class="num">对照 TPS (429率)</th>
-              <th class="num">CSL 差值 (Δ)</th>
+              <th scope="col">时间切片</th>
+              <th scope="col" class="num">{html.escape(meta1['plan_name'])} · CSL</th>
+              <th scope="col" class="num">主观测 Net-JSD</th>
+              <th scope="col" class="num">主观测 TPS (429率)</th>
+              <th scope="col" class="num">{html.escape(meta2['plan_name'])} · CSL</th>
+              <th scope="col" class="num">对照 Net-JSD</th>
+              <th scope="col" class="num">对照 TPS (429率)</th>
+              <th scope="col" class="num">CSL 差值 (Δ)</th>
             </tr>
           </thead>
           <tbody>
@@ -1284,9 +2547,52 @@ def render_timeline_page(query_params: dict) -> str:
     </section>
 
     <footer class="footer">
-      <div>⚡ <strong>CSL-Meter</strong> · 生产主站 <a href="https://konspace.cc">https://konspace.cc</a> · API <a href="https://api.konspace.cc">https://api.konspace.cc</a></div>
+      <div><strong>CSL-Meter</strong> · 生产主站 <a href="https://konspace.cc">https://konspace.cc</a> · API <a href="https://api.konspace.cc">https://api.konspace.cc</a></div>
       <div class="mono">CC-BY-4.0 · 数据每 5 秒同步更新至动态徽章</div>
     </footer>
+  </div>
+</body>
+</html>"""
+
+
+def render_report_not_found_page(report_uuid: str) -> str:
+    uid = html.escape(report_uuid)
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>快照未找到 (#{uid})｜CSL-Meter (konspace.cc)</title>
+  <style>{SHARED_CSS}</style>
+</head>
+<body>
+  <div class="shell">
+    {render_header("report")}
+    <section class="panel" style="max-width:720px;margin:var(--sp-8) auto;">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="tag-chip" style="color:var(--status-err-fg);background:var(--status-err-bg);border-color:var(--status-err-bd);">404 · SNAPSHOT_NOT_FOUND</span>
+          <span>未找到实测快照 #{uid}</span>
+        </div>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);">Snapshot not found</span>
+      </div>
+      <div style="padding:var(--sp-6);">
+        <p style="font-size:var(--fs-body);color:var(--text-primary);font-weight:600;margin-bottom:var(--sp-2);">
+          请求的快照编号 <span class="mono">#{uid}</span> 不存在于当前观测数据库中。
+        </p>
+        <p style="font-size:var(--fs-body);color:var(--text-body);line-height:1.65;margin-bottom:var(--sp-4);">
+          可能原因：① 快照链接拼写有误；② 单次探针请求的上游真实消耗超出单轮预算硬顶（<span class="mono">30,000 Tokens</span>）或有效提取数字样本不足 <span class="mono">8</span> 个，按观测台诚信红线直接中止且零落盘。
+        </p>
+        <div style="display:flex;gap:var(--sp-3);flex-wrap:wrap;">
+          <a href="/" class="btn-submit" style="display:inline-flex;align-items:center;text-decoration:none;">← 返回套餐与 Provider 总表</a>
+          <a href="/r/a49d2e" class="btn-action" style="height:36px;padding:0 var(--sp-4);">查看标准快照样例 (#a49d2e)</a>
+        </div>
+      </div>
+      <div class="notice-bar">
+        <span>数据标注规则：Simulated · 模拟生成 为初始演示基线，Server-Verified 为真实上游探测记录。</span>
+        <span class="mono">konspace.cc</span>
+      </div>
+    </section>
   </div>
 </body>
 </html>"""
@@ -1304,13 +2610,19 @@ def render_report_page(report_uuid: str) -> str:
     base = rep["baseline_dist"]
     is_sim = rep.get("data_origin") != "Server-Verified"
     vmode_display = "Simulated · 模拟生成" if is_sim else "Server-Verified"
+    vmode_chip_cls = "tag-chip tag-simulated" if is_sim else "tag-chip tag-verified"
+    csl_val = rep["csl_index"]
+    csl_color = "var(--status-err-fg)" if csl_val >= 15.0 else "var(--accent)"
+    csl_bar_w = min(100, max(8, int((csl_val / 28.0) * 100)))
+    csl_bar_cls = "csl-bar-fill csl-bar-fill--warn" if csl_val >= 15.0 else "csl-bar-fill"
 
     dist_rows_html = []
     for k in PROBE_BUCKETS:
         o_pct = obs.get(k, 0.0) * 100.0
         b_pct = base.get(k, 0.0) * 100.0
-        o_w = min(100.0, o_pct * 2.4)
-        b_w = min(100.0, b_pct * 2.4)
+        diff_pct = o_pct - b_pct
+        o_w = min(100.0, o_pct * 1.75)
+        b_w = min(100.0, b_pct * 1.75)
         dist_rows_html.append(
             f"""
             <div class="dist-row">
@@ -1320,26 +2632,28 @@ def render_report_page(report_uuid: str) -> str:
                 <div class="bar-ref" style="width:{b_w:.1f}%;" title="官方基线 {b_pct:.1f}%"></div>
               </div>
               <div class="num" style="font-size:11px;">
-                <span style="color:var(--accent-bright);font-weight:600;">{o_pct:.1f}%</span>
+                <span style="color:var(--accent);font-weight:700;">{o_pct:.1f}%</span>
                 <span style="color:var(--text-muted);"> / {b_pct:.1f}%</span>
+                <span style="color:var(--text-muted);font-size:10px;margin-left:2px;">({diff_pct:+.1f})</span>
               </div>
             </div>
             """
         )
 
     ranking_rows = []
-    for item in rep["nearest_ranking"]:
+    for idx, item in enumerate(rep["nearest_ranking"]):
         sim = item["similarity"]
+        rank_badge = f'<span class="step-num">#{idx + 1}</span> ' if idx == 0 else f'<span class="mono" style="color:var(--text-muted);font-size:11px;margin-right:4px;">#{idx + 1}</span>'
         ranking_rows.append(
             f"""
             <tr>
-              <td class="mono" style="font-weight:600;color:var(--text-primary);">{html.escape(item['model'])}</td>
+              <td class="mono" style="font-weight:600;color:var(--text-primary);">{rank_badge}{html.escape(item['model'])}</td>
               <td><span class="tag-chip">{html.escape(item['family'])}</span></td>
               <td class="num">{item['jsd']:.4f}</td>
               <td class="num">
                 <div class="csl-bar-wrap">
                   <div class="csl-bar-bg"><div class="csl-bar-fill" style="width:{min(100, int(sim))}%;"></div></div>
-                  <span style="color:var(--accent-bright);font-weight:700;">{sim:.1f}%</span>
+                  <span style="color:var(--accent);font-weight:700;">{sim:.1f}%</span>
                 </div>
               </td>
             </tr>
@@ -1373,57 +2687,112 @@ def render_report_page(report_uuid: str) -> str:
   <div class="shell">
     {render_header("report")}
 
-    <section class="kpi-strip">
-      <div class="kpi-card">
-        <div class="kpi-label">快照编号 / 套餐归属</div>
-        <div class="kpi-val">#{uid}</div>
-        <div class="kpi-foot">{html.escape(rep['provider_name'])} · {html.escape(rep['plan_name'])}</div>
+    <section class="forensic-deck" aria-label="快照核心取证读数">
+      <div class="forensic-col">
+        <div class="obs-eyebrow">
+          <span class="obs-eyebrow__tag">PRIMARY CSL INDEX (0–100)</span>
+          <span class="mono" style="font-size:11px;color:var(--text-muted);">快照 #{uid}</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:var(--sp-3);margin:var(--sp-1) 0;">
+          <div class="obs-stat__val" style="color:{csl_color};font-size:clamp(2rem, 2.8vw, 2.5rem);">{csl_val:.1f}</div>
+          <div class="csl-bar-bg" style="width:88px;height:8px;"><div class="{csl_bar_cls}" style="width:{csl_bar_w}%;"></div></div>
+        </div>
+        <div class="telemetry-mini-grid">
+          <div>
+            <div class="kpi-label">去壳净距离 Net-JSD</div>
+            <div class="mono" style="font-weight:700;color:var(--text-primary);">{rep['net_jsd']:.3f}</div>
+          </div>
+          <div>
+            <div class="kpi-label">原始距离 Raw-JSD</div>
+            <div class="mono" style="font-weight:600;color:var(--text-body);">{rep['raw_jsd']:.3f}</div>
+          </div>
+          <div>
+            <div class="kpi-label">自切分 Split-JSD</div>
+            <div class="mono" style="font-weight:600;color:var(--text-body);">{rep['split_jsd']:.3f}</div>
+          </div>
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">CSL 指数 (0–100)</div>
-        <div class="kpi-val" style="color:var(--accent-bright);">{rep['csl_index']:.1f}</div>
-        <div class="kpi-foot">去壳净距离 Net-JSD: <span class="mono">{rep['net_jsd']:.3f}</span> (原始 JSD: <span class="mono">{rep['raw_jsd']:.3f}</span>)</div>
+
+      <div class="forensic-col">
+        <div class="obs-eyebrow">
+          <span class="obs-eyebrow__tag">TARGET &amp; NEAREST BASELINE MATCH</span>
+          <span class="harness-key">[{html.escape(rep['harness_type'])}]</span>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:var(--fs-h2);color:var(--text-primary);">{html.escape(rep['provider_name'])} · {html.escape(rep['plan_name'])}</div>
+          <div class="mono" style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;">宣称模型: <strong style="color:var(--text-primary);">{html.escape(rep['claimed_model'])}</strong> · 额度窗口: {html.escape(rep['quota_window_stage'])}</div>
+        </div>
+        <div class="telemetry-mini-grid" style="grid-template-columns:1.2fr 1fr;">
+          <div>
+            <div class="kpi-label">最接近黄金基线底座 (Top-1)</div>
+            <div class="mono" style="font-weight:700;color:var(--accent);font-size:13px;">{html.escape(rep['nearest_profile'])}</div>
+          </div>
+          <div>
+            <div class="kpi-label">次接近候选底座 (Top-2)</div>
+            <div class="mono" style="font-weight:600;color:var(--text-body);font-size:12px;">{html.escape(rep['second_profile'])}</div>
+          </div>
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">最接近黄金基线底座</div>
-        <div class="kpi-val" style="font-size:17px;">{html.escape(rep['nearest_profile'])}</div>
-        <div class="kpi-foot">次接近: {html.escape(rep['second_profile'])} · 自切分 JSD: <span class="mono">{rep['split_jsd']:.3f}</span></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">数据状态与工程遥测</div>
-        <div class="kpi-val" style="font-size:16px;">{html.escape(vmode_display)}</div>
-        <div class="kpi-foot">{rep['tps']:.1f} TPS · TTFT: {rep['ttft_ms']}ms · 计费比: {rep['token_ratio']:.2f}x</div>
+
+      <div class="forensic-col">
+        <div class="obs-eyebrow">
+          <span class="obs-eyebrow__tag">PROVENANCE &amp; TELEMETRY</span>
+          <span class="{vmode_chip_cls}">{html.escape(vmode_display)}</span>
+        </div>
+        <div class="mono" style="font-size:var(--fs-xs);color:var(--text-muted);">
+          采样时间 (UTC): <strong style="color:var(--text-body);">{html.escape(rep['created_at'])}</strong>
+        </div>
+        <div class="telemetry-mini-grid">
+          <div>
+            <div class="kpi-label">实测吞吐</div>
+            <div class="mono" style="font-weight:700;color:var(--text-primary);">{rep['tps']:.1f} TPS</div>
+          </div>
+          <div>
+            <div class="kpi-label">首字延迟 TTFT</div>
+            <div class="mono" style="font-weight:700;color:var(--text-primary);">{rep['ttft_ms']}ms</div>
+          </div>
+          <div>
+            <div class="kpi-label">计费比 / 缓存</div>
+            <div class="mono" style="font-weight:700;color:var(--text-primary);">{rep['token_ratio']:.2f}x ({rep['cache_hit_pct']:.0f}%)</div>
+          </div>
+        </div>
       </div>
     </section>
 
     <div class="grid-2">
-      <section class="panel">
+      <section class="panel" aria-label="去壳校准后采样分布对比">
         <div class="panel-head">
-          <div class="panel-title"><span>去壳校准后采样分布 vs 官方黄金基线 ({html.escape(rep['claimed_model'])})</span></div>
-          <a href="/api/v1/reports/{uid}/raw.json" class="nav-btn mono" download="csl-meter-{uid}.json">下载原始频数 JSON ↓</a>
+          <div class="panel-title">
+            <span class="panel-eyebrow">FINGERPRINT</span>
+            <span>去壳校准后采样分布 vs 官方黄金基线 ({html.escape(rep['claimed_model'])})</span>
+          </div>
+          <a href="/api/v1/reports/{uid}/raw.json" class="btn-action" download="csl-meter-{uid}.json">下载原始频数 JSON ↓</a>
         </div>
-        <div style="padding:14px;">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+        <div style="padding:var(--sp-3) var(--sp-4);">
+          <div style="display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:var(--sp-2);flex-wrap:wrap;gap:var(--sp-1);">
             <span>探针特征桶 (Canonical Buckets)</span>
-            <span><strong style="color:var(--accent-bright);">■ 采样分布</strong> vs <strong>■ 官方基线</strong></span>
+            <span><strong style="color:var(--accent);">■ 采样分布</strong> vs <strong style="color:var(--text-muted);">■ 官方基线</strong> (括号内为百分点差 Δ)</span>
           </div>
           {''.join(dist_rows_html)}
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" aria-label="黄金基线库最近邻匹配排行">
         <div class="panel-head">
-          <div class="panel-title"><span>黄金基线库最近邻匹配排行 (Harness De-biased Top 5)</span></div>
+          <div class="panel-title">
+            <span class="panel-eyebrow">NEAREST-5</span>
+            <span>黄金基线库最近邻匹配排行 (Harness De-biased Top 5)</span>
+          </div>
           <span class="mono" style="font-size:11px;color:var(--text-muted);">工具壳: {html.escape(rep['harness_type'])} · {html.escape(rep['quota_window_stage'])}</span>
         </div>
         <div class="data-table-wrap">
           <table class="data-table">
             <thead>
               <tr>
-                <th>候选基线模型</th>
-                <th>模型家族</th>
-                <th class="num">净距离 Net-JSD</th>
-                <th class="num">分布吻合度</th>
+                <th scope="col">候选基线模型</th>
+                <th scope="col">模型家族</th>
+                <th scope="col" class="num">净距离 Net-JSD</th>
+                <th scope="col" class="num">分布吻合度</th>
               </tr>
             </thead>
             <tbody>
@@ -1432,38 +2801,41 @@ def render_report_page(report_uuid: str) -> str:
           </table>
         </div>
         <div class="notice-bar">
-          <span>采样时间: <span class="mono">{html.escape(rep['created_at'])}</span></span>
-          <span>数据性质: <span class="mono">{html.escape(vmode_display)}</span></span>
+          <span>客观读数声明：仅按 JS 散度列出与当前采样最接近的基线分布，不下主观定性结论。</span>
+          <span>数据性质: <span class="mono" style="font-weight:600;">{html.escape(vmode_display)}</span></span>
         </div>
       </section>
     </div>
 
-    <section class="panel">
+    <section class="panel" aria-label="外部数据引用与社区扩散组件">
       <div class="panel-head">
-        <div class="panel-title"><span>外部数据引用与社区扩散组件（强制自带 CSL-Meter / konspace.cc 标记）</span></div>
-        <img src="/badge/r/{uid}.svg" alt="Snapshot Badge" style="height:22px;"/>
+        <div class="panel-title">
+          <span class="panel-eyebrow">CITATION</span>
+          <span>外部数据引用与社区扩散组件（强制自带 CSL-Meter / konspace.cc 标记）</span>
+        </div>
+        <img src="/badge/r/{uid}.svg" alt="Snapshot Badge" style="height:22px;max-width:100%;"/>
       </div>
-      <div style="padding:14px;display:grid;grid-template-columns:minmax(0, 1.08fr) minmax(0, 0.92fr);gap:14px;">
+      <div class="citation-grid">
         <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span class="field-label">1. 社区晒单专用【ASCII / Markdown 签名块】</span>
-            <button type="button" class="nav-btn" onclick="copyText('ascii-sig', this)">一键复制签名块</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-2);gap:var(--sp-2);">
+            <span class="field-label"><span class="step-num">01</span>社区晒单专用【ASCII / Markdown 签名块】</span>
+            <button type="button" class="btn-action" onclick="copyText('ascii-sig', this)">一键复制签名块</button>
           </div>
           <pre id="ascii-sig" class="code-box">{html.escape(ascii_block)}</pre>
         </div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;flex-direction:column;gap:var(--sp-3);">
           <div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <span class="field-label">2. GitHub / 论坛动态 SVG 徽章 (单次快照 &amp; 套餐实时聚合)</span>
-              <button type="button" class="nav-btn" onclick="copyText('badge-md', this)">复制 Markdown</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-1);gap:var(--sp-2);">
+              <span class="field-label"><span class="step-num">02</span>GitHub / 论坛动态 SVG 徽章 (单次快照 &amp; 套餐实时聚合)</span>
+              <button type="button" class="btn-action" onclick="copyText('badge-md', this)">复制 Markdown</button>
             </div>
             <pre id="badge-md" class="code-box">{html.escape(md_badge_code)}
 {html.escape(md_plan_badge)}</pre>
           </div>
           <div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <span class="field-label">3. 锁定品牌底栏的 Iframe 嵌入卡片</span>
-              <button type="button" class="nav-btn" onclick="copyText('iframe-snippet', this)">复制 Iframe</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-1);gap:var(--sp-2);">
+              <span class="field-label"><span class="step-num">03</span>锁定品牌底栏的 Iframe 嵌入卡片</span>
+              <button type="button" class="btn-action" onclick="copyText('iframe-snippet', this)">复制 Iframe</button>
             </div>
             <pre id="iframe-snippet" class="code-box">{html.escape(iframe_code)}</pre>
           </div>
@@ -1472,7 +2844,7 @@ def render_report_page(report_uuid: str) -> str:
     </section>
 
     <footer class="footer">
-      <div>⚡ <strong>CSL-Meter</strong> · 生产主站 <a href="https://konspace.cc">https://konspace.cc</a> · API <a href="https://api.konspace.cc">https://api.konspace.cc</a></div>
+      <div><strong>CSL-Meter</strong> · 生产主站 <a href="https://konspace.cc">https://konspace.cc</a> · API <a href="https://api.konspace.cc">https://api.konspace.cc</a></div>
       <div class="mono">CC-BY-4.0 · 原始 JSON 与徽章接口开放调用</div>
     </footer>
   </div>
@@ -1482,7 +2854,13 @@ def render_report_page(report_uuid: str) -> str:
     navigator.clipboard.writeText(txt).then(() => {{
       const old = btn.innerText;
       btn.innerText = '已复制 ✓';
-      setTimeout(() => {{ btn.innerText = old; }}, 1500);
+      btn.style.borderColor = 'var(--status-ver-fg)';
+      btn.style.color = 'var(--status-ver-fg)';
+      setTimeout(() => {{
+        btn.innerText = old;
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }}, 1500);
     }});
   }}
   </script>
@@ -1492,18 +2870,21 @@ def render_report_page(report_uuid: str) -> str:
 
 def render_embed_card(title: str, subtitle: str, csl_val: float, jsd_val: float, nearest: str, tps_val: float, n_val: int, target_url: str, is_demo: bool = True) -> str:
     demo_tag = " · DEMO" if is_demo else ""
+    status_cls = "tag-chip tag-simulated" if is_demo else "tag-chip tag-verified"
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>CSL-Meter Embed Card</title>
   <style>
     {SHARED_CSS}
     body {{ background: transparent; padding: 0; margin: 0; overflow: hidden; }}
+    .calib-strip {{ display: none; }}
     .embed-shell {{
       background: var(--bg-surface);
-      border: 1px solid var(--border-focus);
-      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
       height: 210px;
       display: flex;
       flex-direction: column;
@@ -1513,15 +2894,15 @@ def render_embed_card(title: str, subtitle: str, csl_val: float, jsd_val: float,
     .embed-body {{ padding: 14px 16px; }}
     .embed-locked-bar {{
       height: 32px;
-      background: var(--bg-canvas);
-      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-subtle);
+      border-top: 1px solid var(--border-hairline);
       padding: 0 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       font-family: var(--font-mono);
       font-size: 11px;
-      color: var(--accent-bright);
+      color: var(--text-body);
       user-select: none;
     }}
   </style>
@@ -1529,21 +2910,21 @@ def render_embed_card(title: str, subtitle: str, csl_val: float, jsd_val: float,
 <body>
   <div class="embed-shell">
     <div class="embed-body">
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;gap:8px;">
         <div>
           <div style="color:var(--text-primary);font-weight:700;font-size:14px;">{html.escape(title)}</div>
           <div class="mono" style="color:var(--text-muted);font-size:11px;">{html.escape(subtitle)}</div>
         </div>
-        <div class="brand-badge">CSL {csl_val:.1f}{demo_tag}</div>
+        <span class="{status_cls}" style="font-size:12px;padding:3px 8px;">CSL {csl_val:.1f}{demo_tag}</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;background:var(--bg-canvas);padding:10px;border-radius:4px;border:1px solid var(--border-subtle);">
+      <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;background:var(--bg-subtle);padding:10px;border-radius:var(--radius-xs);border:1px solid var(--border-hairline);">
         <div>
           <div style="font-size:10px;color:var(--text-muted);">净距离 Net-JSD</div>
           <div class="mono" style="font-size:14px;font-weight:700;color:var(--text-primary);">{jsd_val:.3f}</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--text-muted);">最接近底座</div>
-          <div class="mono" style="font-size:12px;font-weight:600;color:var(--accent-bright);">{html.escape(nearest)}</div>
+          <div class="mono" style="font-size:12px;font-weight:600;color:var(--accent);">{html.escape(nearest)}</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--text-muted);">中位吞吐</div>
@@ -1556,7 +2937,7 @@ def render_embed_card(title: str, subtitle: str, csl_val: float, jsd_val: float,
       </div>
     </div>
     <div class="embed-locked-bar">
-      <span>⚡ Telemetry by <strong>CSL-Meter</strong> (konspace.cc){demo_tag}</span>
+      <span><strong>CSL-Meter</strong> Telemetry (konspace.cc){demo_tag}</span>
       <a href="{html.escape(target_url)}" target="_blank" rel="noopener">查看原始分布与复现脚本 ↗</a>
     </div>
   </div>
@@ -1567,41 +2948,87 @@ def render_embed_card(title: str, subtitle: str, csl_val: float, jsd_val: float,
 def render_login_page(error: str = "") -> str:
     err_html = ""
     if error:
-        err_html = '<p style="color:#DC2626;font-size:13px;margin:0 0 12px">' + html.escape(error) + "</p>"
-    page = """<!DOCTYPE html>
+        err_html = (
+            '<div role="alert" style="background:var(--status-err-bg);border:1px solid var(--status-err-bd);'
+            'color:var(--status-err-fg);font-size:var(--fs-sm);font-weight:600;padding:var(--sp-2) var(--sp-3);'
+            'border-radius:var(--radius-sm);margin:0 0 var(--sp-4);">'
+            + html.escape(error)
+            + "</div>"
+        )
+    return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>登录 · CSL-Meter (konspace.cc)</title>
 <style>
-body { margin:0; background:#F5F8FD; background-image:radial-gradient(900px 320px at 50% -100px, rgba(46,107,255,0.14), rgba(124,58,237,0.08) 45%, transparent 70%); background-repeat:no-repeat; color:#1E293B; font-family:system-ui,-apple-system,sans-serif; display:flex; min-height:100vh; align-items:center; justify-content:center; }
-.card { background:rgba(255,255,255,0.88); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #E2E8F2; border-radius:16px; padding:32px 28px; width:min(92vw,360px); box-shadow:0 12px 32px rgba(16,24,40,0.10), 0 2px 6px rgba(16,24,40,0.06); }
-h1 { font-size:20px; margin:0 0 6px; background:linear-gradient(135deg,#2E6BFF 0%,#6D5DF6 55%,#7C3AED 100%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:#2E6BFF; }
-.sub { color:#64748B; font-size:13px; margin:0 0 20px; }
-label { display:block; font-size:12px; color:#64748B; margin:0 0 6px; }
-input { width:100%; box-sizing:border-box; background:#FFFFFF; border:1px solid #CBD5E1; border-radius:10px; color:#0C1222; padding:10px 12px; margin:0 0 16px; font-size:14px; }
-input:focus { outline:none; border-color:#2E6BFF; box-shadow:0 0 0 3px rgba(46,107,255,0.15); }
-button { width:100%; background:linear-gradient(135deg,#2E6BFF 0%,#6D5DF6 55%,#7C3AED 100%); color:#fff; border:0; border-radius:999px; padding:11px; font-size:15px; font-weight:600; cursor:pointer; }
-button:hover { opacity:0.92; }
-.note { color:#475569; font-size:12px; margin:16px 0 0; line-height:1.6; }
+{SHARED_CSS}
+.login-stage {{
+  min-height: calc(100vh - 140px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-6) 0;
+}}
+.login-card {{
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  width: min(92vw, 400px);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}}
+.login-card__head {{
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-hairline);
+}}
+.login-card__body {{
+  padding: var(--sp-5);
+}}
+.login-card__foot {{
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border-hairline);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}}
 </style>
 </head>
 <body>
-<form class="card" method="post" action="/login">
-<h1>⚡ CSL-Meter</h1>
-<p class="sub">站主登录 · 自托管部署可选启用</p>
-__ERROR__
-<label for="u">用户名</label>
-<input id="u" name="username" autocomplete="username" required/>
-<label for="p">口令</label>
-<input id="p" name="password" type="password" autocomplete="current-password" required/>
-<button type="submit">登录</button>
-<p class="note">本站数据全部公开，此登录仅供自托管部署在启用 CSL_GATE_PASSWORD_SHA256 时使用，未配置时本站无任何登录拦截。读数标注规则：标注 Simulated · 模拟生成 的是模拟基线数据，标注 Server-Verified 的是真实探测记录，请按标注区分。</p>
-</form>
+  <div class="shell">
+    {render_header("")}
+    <main class="login-stage">
+      <form class="login-card" method="post" action="/login">
+        <div class="login-card__head">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <span class="panel-eyebrow">ACCESS GATE</span>
+            <span class="mono" style="font-size:11px;color:var(--text-muted);">RESTRICTED</span>
+          </div>
+          <h1 style="font-size:var(--fs-h1);color:var(--text-primary);font-weight:700;margin:0;">CSL-Meter 登录</h1>
+          <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:2px;">自托管部署可选启用 · 请验证凭证</p>
+        </div>
+        <div class="login-card__body">
+          {err_html}
+          <div class="field-group" style="margin-bottom:var(--sp-3);">
+            <label class="field-label" for="u"><span class="step-num">01</span>用户名</label>
+            <input id="u" name="username" class="field-input" autocomplete="username" required/>
+          </div>
+          <div class="field-group" style="margin-bottom:var(--sp-4);">
+            <label class="field-label" for="p"><span class="step-num">02</span>口令</label>
+            <input id="p" name="password" type="password" class="field-input" autocomplete="current-password" required/>
+          </div>
+          <button type="submit" class="btn-submit" style="width:100%;">验证并登录 →</button>
+        </div>
+        <div class="login-card__foot">
+          本站观测数据已全部公开，本登录仅供自托管部署在启用 CSL_GATE_PASSWORD_SHA256 时使用，未配置时本站无任何登录拦截。读数标注规则不变：标注 Simulated · 模拟生成 的是模拟基线数据，标注 Server-Verified 的是真实探测记录，请按标注区分。
+        </div>
+      </form>
+    </main>
+  </div>
 </body>
 </html>"""
-    return page.replace("__ERROR__", err_html)
 
 class CSLRequestHandler(BaseHTTPRequestHandler):
     server_version = "CSL-Meter/1.3"
@@ -1811,6 +3238,10 @@ class CSLRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/sitemap.xml":
             self._send_text(200, _sitemap_xml(), "application/xml; charset=utf-8")
+            return
+        if path == "/assets/fonts/csl-sans-latin.woff2" and _FONT_LATIN_WOFF2_BYTES:
+            self._send_headers(200, "font/woff2", cache_sec=86400)
+            self.wfile.write(_FONT_LATIN_WOFF2_BYTES)
             return
 
         # v1.5.0: the site-wide login wall is gone; every route below is
@@ -2022,7 +3453,7 @@ class CSLRequestHandler(BaseHTTPRequestHandler):
             rid = m_rep_view.group(1)
             html_page = render_report_page(rid)
             if not html_page:
-                self._send_html(404, "<html><body>Snapshot not found</body></html>")
+                self._send_html(404, render_report_not_found_page(rid))
                 return
             self._send_html(200, html_page)
             return

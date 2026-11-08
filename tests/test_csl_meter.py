@@ -723,6 +723,30 @@ class TestCSLMeterV13(unittest.TestCase):
             self.assertEqual(h_body, "", path)
             self.assertNotEqual(g_body, "", path)
 
+    def test_17_self_hosted_font_asset_served(self):
+        """Self-hosted Latin+digits variable font subset (/assets/fonts/csl-sans-latin.woff2)
+        answers publicly with font/woff2, wOF2 magic bytes, <=100KB budget, and HEAD parity.
+        """
+        xff = {"X-Forwarded-For": "203.0.113.11"}
+        font_path = "/assets/fonts/csl-sans-latin.woff2"
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("GET", font_path, headers=xff)
+            resp = conn.getresponse()
+            raw_bytes = resp.read()
+            ctype = resp.getheader("Content-Type", "")
+            self.assertEqual(resp.status, 200)
+            self.assertIn("font/woff2", ctype)
+            self.assertTrue(raw_bytes.startswith(b"wOF2"))
+            self.assertLessEqual(len(raw_bytes), 100000)
+        finally:
+            conn.close()
+
+        h_code, h_hdrs, h_body = self._raw("HEAD", font_path, headers=xff)
+        self.assertEqual(h_code, 200)
+        self.assertIn("font/woff2", h_hdrs.get("content-type", ""))
+        self.assertEqual(h_body, "")
+
 
 class TestLegacySchemaMigration(unittest.TestCase):
     """v1.3.1: databases created by v1 code lack the post-v1 columns.
