@@ -705,6 +705,24 @@ class TestCSLMeterV13(unittest.TestCase):
         self.assertIn('"@type": "Organization"', home)
         self.assertIn('"@type": "WebSite"', home)
 
+    def test_15_head_requests_mirror_get(self):
+        """v1.5.7: HEAD answers like GET (status + headers), no body.
+
+        Regression guard for the GSC sitemap stall: the handler used
+        to fall through to BaseHTTPRequestHandler's default 501 for
+        HEAD, while GET /sitemap.xml was 200 and Bing fetched fine.
+        """
+        xff = {"X-Forwarded-For": "203.0.113.9"}
+
+        for path in ("/sitemap.xml", "/robots.txt", "/llms.txt", "/"):
+            g_code, g_hdrs, g_body = self._raw("GET", path, headers=xff)
+            h_code, h_hdrs, h_body = self._raw("HEAD", path, headers=xff)
+            self.assertEqual(h_code, g_code, path)
+            self.assertEqual(h_code, 200, path)
+            self.assertEqual(h_hdrs.get("content-type"), g_hdrs.get("content-type"), path)
+            self.assertEqual(h_body, "", path)
+            self.assertNotEqual(g_body, "", path)
+
 
 class TestLegacySchemaMigration(unittest.TestCase):
     """v1.3.1: databases created by v1 code lack the post-v1 columns.

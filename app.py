@@ -1730,6 +1730,58 @@ class CSLRequestHandler(BaseHTTPRequestHandler):
         cookie = "csl_session=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0"
         self._send_redirect("/login", set_cookie=cookie)
 
+    def do_HEAD(self):
+        """v1.5.7: HEAD mirrors GET status/headers with an empty body.
+
+        BaseHTTPRequestHandler answers 501 for unimplemented methods.
+        Google's sitemap fetcher appears to probe with HEAD first and
+        give up on the 501: GSC stayed at "Couldn't fetch" with 0
+        discovered pages while a plain GET of /sitemap.xml returned
+        200 and Bing fetched it fine (both re-verified 2026-11-08,
+        including a delete-and-resubmit cycle in GSC). Run the real
+        GET handler with the body sink swapped out, so the HEAD
+        response is identical to GET by construction, minus the body.
+        (First attempt at this fix sank the headers along with the
+        body — both travel over wfile — and closed the connection
+        with no response at all; the writer below forwards everything
+        up to end_headers() and only then starts discarding.)
+        """
+        class _HeadWriter:
+            """Forward the status line and headers, swallow the body.
+
+            Both go through wfile; end_headers() is the boundary —
+            every send path in this handler writes its body only
+            after end_headers() has been called.
+            """
+
+            def __init__(self, real):
+                self._real = real
+                self.discard = False
+
+            def write(self, data):
+                if self.discard:
+                    return len(data)
+                return self._real.write(data)
+
+            def flush(self):
+                return self._real.flush()
+
+        writer = _HeadWriter(self.wfile)
+        real_wfile = self.wfile
+        real_end_headers = self.end_headers
+
+        def _end_headers_then_discard():
+            real_end_headers()
+            writer.discard = True
+
+        self.wfile = writer
+        self.end_headers = _end_headers_then_discard
+        try:
+            self.do_GET()
+        finally:
+            self.wfile = real_wfile
+            self.end_headers = real_end_headers
+
     def do_GET(self):
         ip = self._client_ip()
         if not rate_limiter.allow(ip, is_write=False):
